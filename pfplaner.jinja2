@@ -1,0 +1,135 @@
+Create a YAML plan step by step, to satisfy the goal given, with the available tools.
+After all, dump the flow yaml and explaination into different files.
+
+[AVAILABLE TOOLS]
+promptflow.tools.azure_content_safety.AzureContentSafety.analyze_text:
+  inputs:
+    text:
+      description: text to be analyzied
+  description: Use Azure Content Safety to detect harmful content.
+promptflow.tools.azure_detect.AzureDetect.get_language:
+  inputs:
+    input_text:
+      description: text content that need to be detected
+  description: Detect the language of the input text.
+promptflow.tools.azure_translator.AzureTranslator.get_translation:
+  inputs:
+    input_text:
+      description: text that need to be translated
+    source_language:
+      description: language that need to be translate from
+    target_language:
+      description: enlanguage that need to be translate to
+  description: Use Azure Translator API for translating text between 130+ languages.
+promptflow.tools.embedding.embedding:
+  description: Convert text string to a vector (list) of floating point numbers.The distance between two vectors measures their relatedness. Small distances suggest high relatedness and large distances suggest low relatedness.
+  inputs:
+    input:
+      description: text used to build vector (list) of floating point numbers.
+promptflow.tools.serpapi.SerpAPI.search:
+  description: Use Serp API to obtain search results from a microsoft bing search engine.
+  inputs:
+    query:
+      description: text to search
+
+[END AVAILABLE TOOLS]
+
+[LLM TOOLS]
+promptflow.tools.llm:
+  description: llm can understand natual language input, and generate hunman-like answers to text. llm is best at answering open-ended and creative questions. You can treat llm as a person who has the knowledge gained from internet before year 2022, and can understand and anwser your question like a person. Remember that, llm does not have direct access to the internet, you cannot use it to accomplish task that needs to access the internet.
+  inputs:
+    query:
+      description: input text sent to the large language model
+[END LLM TOOLS]
+
+[PYTHON TOOLS]
+promptflow.tools.python:
+  description: use python tool to trigger a customized python function. the function can have multiple inputs and only one output. the function's inputs are the tool's inputs and the function's output is the tool's output
+  inputs:
+    input_1:
+      description: the python function's input
+[END PYTHON TOOLS]
+
+To create a flow, follow these steps:
+0. First, let's think this step by step, figure out a plan on how to achieve the given goal
+1. From a <goal> create a flow in YAML format to represent the plan.
+2. A flow has 'input' available in flow variables by default.
+3. Each step should be implemented using a tool in [AVAILABLE TOOLS], [LLM TOOLS] or [PYTHON TOOLS]. Before using any tool in a flow, check that it is present in the [AVAILABLE TOOLS] list. If it is not, try to use python tool in the [PYTHON TOOLS] for the step if you can give clear python fuction implementation. Otherwise use the tool in [LLM TOOLS] if the step is suit for llm to accomplish.
+4. Only use tools that are required for the given goal.
+5. Always output valid YAML that can be parsed by a YAML parser.
+6. If a flow cannot be created with the [AVAILABLE TOOLS], [LLM TOOLS] and [PYTHON TOOLS], return <flow />.
+7. After you generate the YAML. add description at the end of the YAML to explain how the flow works.
+8. For each node that uses llm tool, use natual language to describe what you want the llm to do clearly and in detail. Remember to reference the llm node's input in the prompt
+9. For each node that use python tool, you should also give the impemenation of the python function in json string format, each json string should be formatted as '{"python fuction name": "function implementation"}'
+10. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example:
+{"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
+
+All flows take the form of:
+goal: Given an url, fetch the web content from the url, summarize the content and classify the url into one web category and give the evidence
+inputs:
+  url:
+    type: string
+    default: https://www.microsoft.com
+outputs:
+  category:
+    type: string
+    reference: ${convert_to_dict.output.category}
+  evidence:
+    type: string
+    reference: ${convert_to_dict.output.evidence}
+nodes:
+- name: fetch_text_content_from_url
+  type: python
+  source:
+    type: code
+    path: fetch_text_content_from_url.py
+  inputs:
+    url: ${inputs.url}
+- name: summarize_text_content
+  type: llm
+  inputs:
+    text: ${fetch_text_content_from_url.output}
+  prompt: summarize the text: {{text}}
+- name: prepare_examples
+  type: python
+  source:
+    type: code
+    path: prepare_examples.py
+  inputs: {}
+- name: classify_with_llm
+  type: llm
+  inputs:
+    url: ${inputs.url}
+    text_content: ${summarize_text_content.output}
+    examples: ${prepare_examples.output}
+  prompt: classify the url {{url}} with text content {{text_content}}, the output should follow the example: {{examples}}
+- name: convert_to_dict
+  type: python
+  source:
+    type: code
+    path: convert_to_dict.py
+  inputs:
+    input_str: ${classify_with_llm.output}
+
+When create flow, folow below rules:
+1. A tool has one or more named inputs and a single 'output' which are all strings. One node use one tool.
+2. To save an 'output' from a node named node_1, and pass into a future node, use ${node_1.output}
+3. To save an 'output' from a node named node_2, and return as part of a flow output, use ${node_2.output}
+4. Different nodes can consume the output from the same upstream node
+5. If node_1 pass its output to node_2, it means node_1 is the preorder node of node_2
+6. If the node uses promptflow.tools.llm tool, you should format a prompt template as the llm's input, to reference the input of the node, for example input_1, use {{input_1}} to reference in the template
+7. The flow's input and output can only have one of the types in ['int', 'double', 'bool', 'string', 'list', 'object']
+8. Do not forget to add 'from promptflow import tool' in each python tool's impemenation
+9. Do not forget to declar the parametr's type for each python tool's implementation function
+
+Please format your answer into three parts:
+
+flow yaml:
+
+explaination on how the flow works:
+
+python functions list:
+
+Begin!
+
+<goal>[[goal]]</goal>
