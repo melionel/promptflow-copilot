@@ -8,17 +8,16 @@ Copilot: Welcome to use promptflow copilot! I can help you to create a promptflo
 Although the auto generated flow might be not right or lack of some implementation details, it should be a good start to develop your own flow. Enjoy!
 
 Before start, remember to set below variables in the pfcopilot.env file.
+
 """
 
 checking_environment_message = "Checking your environment..."
 
-environment_ready_message = """
-Copilot: You are all set, let's start!
-Pleae tell me your goal you want to accomplish using promptflow.
+environment_ready_message = """You are all set, let's start! Pleae tell me your goal you want to accomplish using promptflow.
 """
 
 environment_not_ready_message = """
-Copilot: Your environment is not ready, please configure your environment and restart the window.
+Your environment is not ready, please configure your environment and restart the window.
 """
 
 BG_GRAY = "#ABB2B9"
@@ -34,21 +33,27 @@ FONT_BOLD = "Helvetica 13 bold"
 
 def get_response():
     user_input = entry.get()
-    add_to_chat("You: " + user_input, USER_TAG)
-    # Add your response logic here
-    response = "Copilot: Thanks for your input!"
-    add_to_chat(response, COPILOT_TAG)
-    chat_box.yview_moveto(1.0)
+    add_to_chat(user_input, USER_TAG)
+    update_label.config(text='Status: Talking to GPT...')
+    app.update()
 
-def add_to_chat(message, tag):
+    copilot_context.ask_gpt(user_input, add_to_chat)
+    chat_box.yview_moveto(1.0)
+    update_label.config(text="Status: Waiting for user's input...")
+
+def add_to_chat(message, tag=COPILOT_TAG):
     chat_box.config(state=tk.NORMAL)
-    chat_box.insert(tk.END, message + "\n", tag)
+    chat_box.insert(tk.END, tag + ': ' + message + "\n\n", tag)
     chat_box.config(state=tk.DISABLED)
     entry.delete(0, tk.END)
+    app.update()
 
 # Create the main application window
 app = tk.Tk()
 app.title("Promptflow Copilot")
+
+update_label = tk.Label(app, text="Status: Waiting for user's input...", foreground='green', font=FONT_BOLD)
+update_label.grid(row=0)
 
 # init CopilotContext
 copilot_context = CopilotContext()
