@@ -51,16 +51,20 @@ def add_to_chat(message, tag=COPILOT_TAG):
 # Create the main application window
 app = tk.Tk()
 app.title("Promptflow Copilot")
+app.grid_rowconfigure(1, weight=1)
+app.grid_columnconfigure(0, weight=1)
+app.rowconfigure(0, minsize=20)
+app.rowconfigure(1, minsize=200)
 
-update_label = tk.Label(app, text="Status: Waiting for user's input...", foreground='green', font=FONT_BOLD)
-update_label.grid(row=0)
+update_label = tk.Label(app, text="Status: Waiting for user's input...", foreground='green', font=FONT_BOLD, height=2)
+update_label.grid(row=0, sticky='nw')
 
 # init CopilotContext
 copilot_context = CopilotContext()
 
 # Create a text widget to display the chat conversation
-chat_box = tk.Text(app, width=100, bg=BG_COLOR, fg=PILOT_TEXT_COLOR, font=FONT)
-chat_box.grid(row=1, column=0, columnspan=2)
+chat_box = tk.Text(app, bg=BG_COLOR, fg=PILOT_TEXT_COLOR, font=FONT)
+chat_box.grid(row=1, column=0, columnspan=10, sticky='nsew')
 chat_box.tag_config('User', background=BG_COLOR, foreground = TEXT_COLOR)
 chat_box.tag_config('Copilot',  background=BG_COLOR, foreground = PILOT_TEXT_COLOR)
 
@@ -70,14 +74,14 @@ chat_box.config(state=tk.DISABLED)
 # scrollbar.place(relheight=1, relx=0.974)
 
 # Create an entry widget to accept user input
-entry = tk.Entry(app, width=90, bg="#2C3E50", fg=TEXT_COLOR, font=FONT)
-entry.grid(row=2, column=0)
+entry = tk.Entry(app, bg="#2C3E50", fg=TEXT_COLOR, font=FONT)
+entry.grid(row=2, column=0, columnspan=9, sticky='nsew')
 
 # Create a button with ttk style
 button_style = ttk.Style()
 button_style.configure('TButton', font=('Helvetica', 12))
 button = ttk.Button(app, text="Send", command=get_response, style='TButton')
-button.grid(row=2, column=1)
+button.grid(row=2, column=9, columnspan=1, sticky='nsew')
 
 # check environment
 env_ready, msg = copilot_context.check_env()
