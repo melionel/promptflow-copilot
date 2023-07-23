@@ -140,7 +140,7 @@ class CopilotContext:
 
         request_args_dict = self.format_request_dict({'name': 'dump_flow'})
 
-        print_info_func('Generating prompt flow for your goal, please wait...', 'Copilot')
+        print_info_func('Generating prompt flow for your goal, please wait...')
         response = openai.ChatCompletion.create(**request_args_dict)
 
         response_ms = response.response_ms
@@ -148,10 +148,10 @@ class CopilotContext:
         completion_tokens = response.usage.completion_tokens
         total_tokens = response.usage.total_tokens
 
-        print_info_func(f'Finished generating prompt flow for your goal from ChatGPT in {response_ms} ms!', 'Copilot')
-        print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}', 'Copilot')
+        print_info_func(f'Finished generating prompt flow for your goal from ChatGPT in {response_ms} ms!')
+        print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
 
-        print_info_func(f'Dumping generated prompt flow to local folder...', 'Copilot')
+        print_info_func(f'Dumping generated prompt flow to local folder...')
 
         function_arguments = json.loads(getattr(response.choices[0].message.function_call, "arguments", ""))
         dump_flow(**function_arguments, target_folder=self.local_folder)
@@ -159,14 +159,14 @@ class CopilotContext:
         self.flow_generated = True
         self.messages.append({"role": "assistant", "function_call": response.choices[0].message.function_call, "content": ""})
 
-        print_info_func(f'Congratulations! Your prompt flow was successfully dumped to local folder: {self.local_folder}', 'Copilot')
-        print_info_func(f'How the flow works: {function_arguments["explaination"]}', 'Copilot')
+        print_info_func(f'Congratulations! Your prompt flow was successfully dumped to local folder: {self.local_folder}')
+        print_info_func(f'How the flow works: {function_arguments["explaination"]}')
 
     def ask_gpt(self, content, print_info_func):
         if not self.flow_generated:
             self.generate_flow(content, print_info_func)
         else:
-            print_info_func('Contact ChatGPT for furthur help, please wait...', 'Copilot')
+            print_info_func('Contact ChatGPT for furthur help, please wait...')
             self.messages.append({'role':'user', 'content':content})
             request_args_dict = self.format_request_dict('auto')
             
@@ -178,9 +178,9 @@ class CopilotContext:
 
             message = getattr(response.choices[0].message, "content", "")
 
-            print_info_func(f'Get response from ChatGPT in {response_ms} ms!', 'Copilot')
-            print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}', 'Copilot')
+            print_info_func(f'Get response from ChatGPT in {response_ms} ms!')
+            print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
 
             self.messages.append({'role':'user', 'content':message})
 
-            print_info_func(f'{message}', 'Copilot')
+            print_info_func(f'{message}')

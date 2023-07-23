@@ -20,6 +20,8 @@ environment_not_ready_message = """
 Your environment is not ready, please configure your environment and restart the window.
 """
 
+entry_default_message = "Send a message..."
+
 BG_GRAY = "#ABB2B9"
 BG_COLOR = "#17202A"
 TEXT_COLOR = "#EAECEE"
@@ -36,7 +38,6 @@ def get_response():
     add_to_chat(user_input, USER_TAG)
     update_label.config(text='Status: Talking to GPT...')
     app.update()
-
     copilot_context.ask_gpt(user_input, add_to_chat)
     chat_box.yview_moveto(1.0)
     update_label.config(text="Status: Waiting for user's input...")
@@ -47,6 +48,19 @@ def add_to_chat(message, tag=COPILOT_TAG):
     chat_box.config(state=tk.DISABLED)
     entry.delete(0, tk.END)
     app.update()
+
+def entry_on_enter_pressed(event):
+    get_response()
+
+def on_entry_click(event):
+    if entry.get() == entry_default_message:
+        entry.delete(0, "end")
+        entry.config(fg=TEXT_COLOR)
+
+def on_focus_out(event):
+    if entry.get() == "":
+        entry.insert(0, entry_default_message)
+        entry.config(fg="gray")
 
 # Create the main application window
 app = tk.Tk()
@@ -74,8 +88,14 @@ chat_box.config(state=tk.DISABLED)
 # scrollbar.place(relheight=1, relx=0.974)
 
 # Create an entry widget to accept user input
-entry = tk.Entry(app, bg="#2C3E50", fg=TEXT_COLOR, font=FONT)
+entry = tk.Entry(app, bg="#2C3E50", fg="grey", font=FONT)
 entry.grid(row=2, column=0, columnspan=9, sticky='nsew')
+entry.insert(0, entry_default_message)
+entry.bind("<Return>", entry_on_enter_pressed)
+entry.bind("<FocusIn>", on_entry_click)
+entry.bind("<FocusOut>", on_focus_out)
+entry.focus_set()
+entry.icursor(0)
 
 # Create a button with ttk style
 button_style = ttk.Style()
