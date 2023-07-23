@@ -19,25 +19,25 @@ def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, 
     if not os.path.exists(target_folder):
         os.mkdir(target_folder)
 
-    with open(f'{target_folder}\\flow.dag.yaml', 'w') as f:
+    with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
         f.write(flow_yaml)
 
-    with open(f'{target_folder}\\flow.explaination.txt', 'w') as f:
+    with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
         f.write(explaination)
 
     for func in python_functions:
         fo =  func if type(func) == dict else json.loads(func)
         for k,v in fo.items():
-            with open(f'{target_folder}\\{k}.py', 'w') as f:
+            with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
                 f.write(v)
 
     for prompt in prompts:
         po = prompt if type(prompt) == dict else json.loads(prompt)
         for k,v in po.items():
-            with open(f'{target_folder}\\{k}.jinja2', 'w') as f:
+            with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
                 f.write(v)
 
-    with open(f'{target_folder}\\requirements.txt', 'w') as f:
+    with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
         f.write(requirements)
 
 class CopilotContext:
@@ -119,14 +119,16 @@ class CopilotContext:
         self.messages = []
         self.local_folder = generate_random_folder_name()
 
-    def format_request_dict(self, function_call):
+    def format_request_dict(self, function_call=None):
         request_args_dict = {
             "messages": self.messages,
             "functions": self.my_custom_functions,
-            "function_call": function_call,
             "stream": False,
             "temperature": 0
         }
+
+        if function_call:
+            request_args_dict['function_call'] = function_call
 
         if self.use_aoai:
             request_args_dict['engine'] = self.aoai_deployment
@@ -156,16 +158,25 @@ class CopilotContext:
         print_info_func(f'Finished generating prompt flow for your goal from ChatGPT in {response_ms} ms!')
         print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
 
-        print_info_func(f'Dumping generated prompt flow to local folder...')
+        message = getattr(response.choices[0].message, "content", "")
+        if message:
+            self.messages.append({'role':response.choices[0].message.role, 'content':message})
+            print_info_func(f'{message}')
 
-        function_arguments = json.loads(getattr(response.choices[0].message.function_call, "arguments", ""))
-        dump_flow(**function_arguments, target_folder=self.local_folder)
+        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        if function_call and function_call != "":
+            print_info_func(f'Dumping generated prompt flow to local folder...')
 
-        self.flow_generated = True
-        self.messages.append({"role": "assistant", "function_call": response.choices[0].message.function_call, "content": ""})
+            function_arguments = json.loads(getattr(response.choices[0].message.function_call, "arguments", ""))
+            dump_flow(**function_arguments, target_folder=self.local_folder)
 
-        print_info_func(f'Congratulations! Your prompt flow was successfully dumped to local folder: {self.local_folder}')
-        print_info_func(f'How the flow works: {function_arguments["explaination"]}')
+            self.flow_generated = True
+            self.messages.append({"role": "assistant", "function_call": response.choices[0].message.function_call, "content": ""})
+
+            print_info_func(f'Congratulations! Your prompt flow was successfully dumped to local folder: {self.local_folder}')
+            print_info_func(f'How the flow works: {function_arguments["explaination"]}')
+        else:
+            print_info_func(f'Could not dump flow to local folder as ChatGPT did not give the valid response.')
 
     def ask_gpt(self, content, print_info_func):
         if not self.flow_generated:
@@ -186,6 +197,14 @@ class CopilotContext:
             print_info_func(f'Get response from ChatGPT in {response_ms} ms!')
             print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
 
-            self.messages.append({'role':'user', 'content':message})
-
-            print_info_func(f'{message}')
+            if message:
+                self.messages.append({'role':response.choices[0].message.role, 'content':message})
+                print_info_func(f'{message}')
+            
+            function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+            if function_call and function_call != "":
+                function_arguments = json.loads(function_call)
+                dump_flow(**function_arguments, target_folder=self.local_folder)
+                self.messages.append({"role": "assistant", "function_call": response.choices[0].message.function_call, "content": ""})
+                print_info_func(f'According to your request, regenerated your flow to local folder: {self.local_folder}')
+                print_info_func(f'How the new flow works: {function_arguments["explaination"]}')
