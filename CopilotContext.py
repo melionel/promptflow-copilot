@@ -114,6 +114,11 @@ class CopilotContext:
                 openai.api_key = self.openai_key
                 return True, ""
 
+    def reset(self):
+        self.flow_generated = False
+        self.messages = []
+        self.local_folder = generate_random_folder_name()
+
     def format_request_dict(self, function_call):
         request_args_dict = {
             "messages": self.messages,

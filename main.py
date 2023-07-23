@@ -35,12 +35,19 @@ FONT_BOLD = "Helvetica 13 bold"
 
 def get_response():
     user_input = entry.get()
+    if user_input == entry_default_message:
+        return
     add_to_chat(user_input, USER_TAG)
     update_label.config(text='Status: Talking to GPT...')
     app.update()
     copilot_context.ask_gpt(user_input, add_to_chat)
     chat_box.yview_moveto(1.0)
     update_label.config(text="Status: Waiting for user's input...")
+
+def start_over():
+    add_to_chat("Okay, let's satrt over. Pleae tell me your goal you want to accomplish using promptflow")
+    chat_box.yview_moveto(1.0)
+    copilot_context.reset()
 
 def add_to_chat(message, tag=COPILOT_TAG):
     chat_box.config(state=tk.NORMAL)
@@ -66,8 +73,7 @@ def on_focus_out(event):
 app = tk.Tk()
 app.title("Promptflow Copilot")
 app.grid_rowconfigure(1, weight=1)
-app.grid_columnconfigure(0, weight=1)
-app.rowconfigure(0, minsize=20)
+app.rowconfigure(0, minsize=10)
 app.rowconfigure(1, minsize=200)
 
 update_label = tk.Label(app, text="Status: Waiting for user's input...", foreground='green', font=FONT_BOLD, height=2)
@@ -94,14 +100,17 @@ entry.insert(0, entry_default_message)
 entry.bind("<Return>", entry_on_enter_pressed)
 entry.bind("<FocusIn>", on_entry_click)
 entry.bind("<FocusOut>", on_focus_out)
-entry.focus_set()
-entry.icursor(0)
+# entry.focus_set()
+# entry.icursor(0)
 
-# Create a button with ttk style
+# Create buttons with ttk style
 button_style = ttk.Style()
 button_style.configure('TButton', font=('Helvetica', 12))
-button = ttk.Button(app, text="Send", command=get_response, style='TButton')
-button.grid(row=2, column=9, columnspan=1, sticky='nsew')
+
+reset_button = ttk.Button(app, text="Start over", command=start_over, style='TButton')
+reset_button.grid(row=0, column=9, columnspan=1, sticky='nsew')
+send_button = ttk.Button(app, text="Send", command=get_response, style='TButton')
+send_button.grid(row=2, column=9, columnspan=1, sticky='nsew')
 
 # check environment
 env_ready, msg = copilot_context.check_env()
