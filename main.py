@@ -1,7 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Scrollbar
+from tkinter import messagebox
 from CopilotContext import CopilotContext
+import traceback
 
 welcome_message = """
 Copilot: Welcome to use promptflow copilot! I can help you to create a promptflow to accomplish your goal.
@@ -34,45 +36,60 @@ FONT = "Helvetica 14"
 FONT_BOLD = "Helvetica 13 bold"
 
 def get_response():
-    user_input = entry.get()
-    if user_input == entry_default_message:
-        return
-    add_to_chat(user_input, USER_TAG)
-    update_label.config(text='Status: Talking to GPT...')
-    app.update()
-    copilot_context.ask_gpt(user_input, add_to_chat)
-    chat_box.yview_moveto(1.0)
-    update_label.config(text="Status: Waiting for user's input...")
+    try:
+        user_input = input_box.get(1.0, tk.END).strip('\n')
+        if user_input == entry_default_message:
+            return
+        add_to_chat(user_input, USER_TAG)
+        update_label.config(text='Status: Talking to GPT...')
+        app.update()
+        copilot_context.ask_gpt(user_input, add_to_chat)
+        chat_box.yview_moveto(1.0)
+        update_label.config(text="Status: Waiting for user's input...")
+    except Exception:
+        trace_back = traceback.format_exc()
+        messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
+        app.destroy()
 
 def start_over():
-    add_to_chat("Okay, let's satrt over. Pleae tell me your goal you want to accomplish using promptflow")
-    chat_box.yview_moveto(1.0)
-    copilot_context.reset()
-
+    try:
+        add_to_chat("Okay, let's satrt over. Pleae tell me your goal you want to accomplish using promptflow")
+        chat_box.yview_moveto(1.0)
+        copilot_context.reset()
+    except Exception:
+        trace_back = traceback.format_exc()
+        messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
+        app.destroy()
+        
 def add_to_chat(message, tag=COPILOT_TAG):
     chat_box.config(state=tk.NORMAL)
     chat_box.insert(tk.END, tag + ': ' + message + "\n\n", tag)
     chat_box.config(state=tk.DISABLED)
-    entry.delete(0, tk.END)
+    chat_box.yview_moveto(1.0)
+    input_box.delete(1.0, tk.END)
+    input_box.see("1.0")
+    input_box.mark_set(tk.INSERT, 1.0)
     app.update()
 
-def entry_on_enter_pressed(event):
+def ctrl_enter_pressed(event):
     get_response()
 
 def on_entry_click(event):
-    if entry.get() == entry_default_message:
-        entry.delete(0, "end")
-        entry.config(fg=TEXT_COLOR)
+    if input_box.get(1.0, "end-1c").strip('\n') == entry_default_message:
+        input_box.delete(1.0, tk.END)
+        input_box.config(fg=TEXT_COLOR)
 
 def on_focus_out(event):
-    if entry.get() == "":
-        entry.insert(0, entry_default_message)
-        entry.config(fg="gray")
+    if input_box.get(1.0, "end-1c").strip('\n') == "":
+        input_box.insert(tk.END, entry_default_message)
+        input_box.config(fg="gray")
 
 # Create the main application window
 app = tk.Tk()
 app.title("Promptflow Copilot")
 app.grid_rowconfigure(1, weight=1)
+app.grid_columnconfigure(1, weight=1)
+
 app.rowconfigure(0, minsize=10)
 app.rowconfigure(1, minsize=200)
 
@@ -93,15 +110,15 @@ chat_box.config(state=tk.DISABLED)
 # scrollbar = Scrollbar(chat_box)
 # scrollbar.place(relheight=1, relx=0.974)
 
-# Create an entry widget to accept user input
-entry = tk.Entry(app, bg="#2C3E50", fg="grey", font=FONT)
-entry.grid(row=2, column=0, columnspan=9, sticky='nsew')
-entry.insert(0, entry_default_message)
-entry.bind("<Return>", entry_on_enter_pressed)
-entry.bind("<FocusIn>", on_entry_click)
-entry.bind("<FocusOut>", on_focus_out)
-# entry.focus_set()
-# entry.icursor(0)
+# create a text box to accept user input
+input_box = tk.Text(app, bg="#2C3E50", fg="grey", font=FONT, height=2)
+input_box.grid(row=2, column=0, columnspan=9, sticky='nsew')
+input_box.bind("<Control-Return>", ctrl_enter_pressed)
+input_box.bind("<FocusIn>", on_entry_click)
+input_box.bind("<FocusOut>", on_focus_out)
+
+input_box.focus_set()
+input_box.insert(1.0, entry_default_message)
 
 # Create buttons with ttk style
 button_style = ttk.Style()

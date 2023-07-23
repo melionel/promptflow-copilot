@@ -49,7 +49,7 @@ class CopilotContext:
         self.aoai_api_base = os.environ.get("AOAI_API_BASE")
 
         self.openai_key = os.environ.get("OPENAI_API_KEY")
-        self.openai_model = os.environ.get("OPENAI_API_KEY")
+        self.openai_model = os.environ.get("OPENAI_MODEL")
 
         self.local_folder = generate_random_folder_name()
         self.messages = []
