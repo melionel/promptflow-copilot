@@ -72,14 +72,6 @@ To figure out the plan, follow these steps:
 4. A flow has 'input' available in flow variables by default.
 5. flow's outputs must reference one of the node's output.
 6. Always output valid YAML that can be parsed by a YAML parser.
-7. After you generate the YAML. add description at the end of the YAML to explain how the flow works.
-8. For each node that use python tool, you should also give the impemenation of the python function in json string format. Remember that you are a good python programmer, you should implement the python function in detail, and you will leverage any public python packages which can be found from pypi if needed
-9. For each node that uses llm tool, use natual language to describe what you want the llm to do clearly and in detail and treat it as the llm node's prompt. you can add extra input to receive pre-order nodes's output and use it in the prompt for example, you want to use the output of node_1, you can define an extra input named 'upper_text', and use {{upper_text}} to reference in the prompt.
-10. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example: {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
-11. Format all python functions in a list of dictionary, use the function's name as the key and the json string as the value.
-12. Format all llm node's prompts in a list of dictionary, use the node's name as the key and the prompt as the value.
-13. Review all python functions, fix the grammer error and optimize the impemenation
-14. list all extra python packages you used in the python functions
 
 All flows take the form of:
 inputs:
@@ -157,6 +149,13 @@ When create flow, folow below rules:
 11. You are a good python programmer, you should implement the python function in detail, and you can leverage public python packages if needed
 12. Do not use TODO in the python function tool's implementation, give the implementation code in detail explicitly
 13. Do not generate prompt for python tool step
+14. For each node that use python tool, you should also give the impemenation of the python function in json string format. Remember that you are a good python programmer, you should implement the python function in detail, and you will leverage any public python packages which can be found from pypi if needed
+15. For each node that uses llm tool, use natual language to describe what you want the llm to do clearly and in detail and treat it as the llm node's prompt. you can add extra input to receive pre-order nodes's output and use it in the prompt for example, you want to use the output of node_1, you can define an extra input named 'upper_text', and use {{upper_text}} to reference in the prompt.
+16. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example: {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
+17. Format all python functions in a list of dictionary, use the function's name as the key and the json string as the value.
+18. Format all llm node's prompts in a list of dictionary, use the node's name as the key and the prompt as the value.
+19. Review all python functions, fix the grammer error and optimize the impemenation
+20. list all extra python packages you used in the python functions
 
 Please format your answer into three parts: flow_yaml, explaination, python_functions, prompts, requirements
 

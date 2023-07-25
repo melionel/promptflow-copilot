@@ -67,11 +67,13 @@ class CopilotContext:
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
         self.local_folder = generate_random_folder_name()
-        self.messages = []
-        self.flow_generated = False
         
         with open('system_instruction.txt', 'r', encoding='utf-8') as f:
             self.system_instruction = f.read()
+
+        self.messages = [
+            {'role':'system', 'content': self.system_instruction},
+        ]
 
         env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
         self.template = env.get_template('pfplaner_v5.jinja2')
@@ -147,8 +149,9 @@ class CopilotContext:
                 return True, ""
 
     def reset(self):
-        self.flow_generated = False
-        self.messages = []
+        self.messages = [
+            {'role':'system', 'content': self.system_instruction},
+        ]
         self.local_folder = generate_random_folder_name()
 
     def format_request_dict(self, function_call=None):
@@ -185,15 +188,12 @@ class CopilotContext:
         self.parse_gpt_response(response, print_info_func)
 
     def ask_gpt(self, content, print_info_func):
-        if not self.flow_generated:
-            self.generate_flow(content, print_info_func)
-        else:
-            print_info_func('Contact ChatGPT for furthur help, please wait...')
-            self.messages.append({'role':'user', 'content':content})
-            request_args_dict = self.format_request_dict('auto')
-            
-            response = openai.ChatCompletion.create(**request_args_dict)
-            self.parse_gpt_response(response, print_info_func)
+        print_info_func('Contact ChatGPT for furthur help, please wait...')
+        self.messages.append({'role':'user', 'content':content})
+        request_args_dict = self.format_request_dict('auto')
+        
+        response = openai.ChatCompletion.create(**request_args_dict)
+        self.parse_gpt_response(response, print_info_func)
 
     def parse_gpt_response(self, response, print_info_func):
         response_ms = response.response_ms
@@ -217,7 +217,6 @@ class CopilotContext:
             if function_name == 'dump_flow':
                 dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
-                self.flow_generated = True
             elif function_name == 'read_local_file':
                 file_content = read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
