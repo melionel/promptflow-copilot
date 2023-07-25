@@ -67,7 +67,7 @@ class CopilotContext:
 
         self.local_folder = generate_random_folder_name()
         
-        with open('system_instruction.txt', 'r', encoding='utf-8') as f:
+        with open('system_instruction_v2.txt', 'r', encoding='utf-8') as f:
             self.system_instruction = f.read()
 
         self.messages = [
