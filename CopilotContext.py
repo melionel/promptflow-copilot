@@ -3,7 +3,6 @@ import json
 import openai
 from datetime import datetime
 from dotenv import load_dotenv
-from jinja2 import Environment, FileSystemLoader
 
 def generate_random_folder_name():
     # Get the current timestamp as a string
@@ -74,9 +73,6 @@ class CopilotContext:
         self.messages = [
             {'role':'system', 'content': self.system_instruction},
         ]
-
-        env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
-        self.template = env.get_template('pfplaner_v5.jinja2')
 
         self.my_custom_functions = [
             {
@@ -171,21 +167,6 @@ class CopilotContext:
             request_args_dict['model'] = self.openai_model
 
         return request_args_dict         
-
-    def generate_flow(self, goal, print_info_func):
-        prompt = self.template.render(goal=goal)
-            
-        self.messages = [
-            {'role':'system', 'content': self.system_instruction},
-            {'role':'user', 'content':prompt}
-        ]
-
-        request_args_dict = self.format_request_dict('auto')
-
-        print_info_func('Generating prompt flow for your goal, please wait...')
-        response = openai.ChatCompletion.create(**request_args_dict)
-
-        self.parse_gpt_response(response, print_info_func)
 
     def ask_gpt(self, content, print_info_func):
         print_info_func('Contact ChatGPT for furthur help, please wait...')
