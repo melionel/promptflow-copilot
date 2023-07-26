@@ -1,5 +1,7 @@
 # Promptflow Copilot
 
+An intelligent copilot designed for promptflow
+
 ## Objective
 
 The promptflow copilot is aimed build an intellegent copilot on top of ChatGPT that can interactively help promptflow users to:
