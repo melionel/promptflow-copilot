@@ -49,7 +49,7 @@ def get_response():
     except Exception:
         trace_back = traceback.format_exc()
         messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
-        app.destroy()
+        add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
 
 def start_over():
     try:
@@ -59,7 +59,7 @@ def start_over():
     except Exception:
         trace_back = traceback.format_exc()
         messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
-        app.destroy()
+        add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
         
 def add_to_chat(message, tag=COPILOT_TAG):
     chat_box.config(state=tk.NORMAL)
