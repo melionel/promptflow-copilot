@@ -53,6 +53,30 @@ def read_local_file(path, print_info_func):
         print_info_func(f'read content from file:{path}')
         with open(path, 'r', encoding="utf-8") as f:
             return f.read()
+        
+def read_local_folder(path, print_info_func):
+    if not os.path.exists(path):
+        print_info_func(f'{path} does not exists')
+        return
+    else:
+        print_info_func(f'read content from folder:{path}')
+        file_contents_dict = {}
+
+        for root, _, files in os.walk(path):
+            for file_name in files:
+                if file_name.endswith('.ipynb') or file_name.endswith('.gitignore'):
+                    continue
+                subfolder_name = os.path.relpath(root, start=path)
+                if subfolder_name == '.':
+                    subfolder_name = ''  # Use an empty string for files in the root folder
+                else:
+                    subfolder_name += '/'  # Add a slash to separate subfolder name and file name
+                file_path = os.path.join(root, file_name)
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    file_content = file.read()
+                    key = subfolder_name + file_name
+                    file_contents_dict[key] = file_content
+        return json.dumps(file_contents_dict)
 
 class CopilotContext:
     def __init__(self) -> None:
@@ -120,6 +144,20 @@ class CopilotContext:
                         'path': {
                             'type': 'string',
                             'description': 'path to local file'
+                        }
+                    },
+                    'required': ['path']
+                }
+            },
+            {
+                'name': 'read_local_folder',
+                'description': 'read all files content from local folder',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {
+                            'type': 'string',
+                            'description': 'path to local folder'
                         }
                     },
                     'required': ['path']
@@ -204,6 +242,15 @@ class CopilotContext:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
+                    request_args_dict = self.format_request_dict('auto')
+                    new_response = openai.ChatCompletion.create(**request_args_dict)
+                    self.parse_gpt_response(new_response, print_info_func)
+            elif function_name == 'read_local_folder':
+                files_content = read_local_folder(**function_arguments, print_info_func=print_info_func)
+                if not files_content:
+                    print_info_func('you ask me to read code from a folder, but the folder does not exists')
+                else:
+                    self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     request_args_dict = self.format_request_dict('auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
