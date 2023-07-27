@@ -221,6 +221,7 @@ class CopilotContext:
         total_tokens = response.usage.total_tokens
 
         message = getattr(response.choices[0].message, "content", "")
+        finish_reason = response.choices[0].finish_reason
 
         print_info_func(f'Get response from ChatGPT in {response_ms} ms!')
         print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
@@ -229,8 +230,8 @@ class CopilotContext:
             self.messages.append({'role':response.choices[0].message.role, 'content':message})
             print_info_func(f'{message}')
         
-        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
-        if function_call and function_call != "":
+        if finish_reason == 'function_call':
+            function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             function_arguments = json.loads(function_call)
             if function_name == 'dump_flow':
