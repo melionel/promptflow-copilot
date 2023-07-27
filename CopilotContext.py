@@ -78,6 +78,19 @@ def read_local_folder(path, print_info_func):
                     file_contents_dict[key] = file_content
         return json.dumps(file_contents_dict)
 
+def dump_sample_inputs(sample_inputs, target_folder, print_info_func):
+    if sample_inputs is None:
+        print_info_func('Failed to generate inputs for your flow, please try again')
+    else:
+        with open(f'{target_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+            for sample_input in sample_inputs:
+                if sample_input is None:
+                    continue
+                else:
+                    sample_input = sample_input if type(sample_input) == str else json.dumps(sample_input)
+                f.write(sample_input + '\n')
+        print_info_func(f'Generated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
+
 class CopilotContext:
     def __init__(self) -> None:
         load_dotenv('pfcopilot.env')
@@ -162,7 +175,24 @@ class CopilotContext:
                     },
                     'required': ['path']
                 }
-            }
+            },
+            {
+                'name': 'dump_sample_inputs',
+                'description': 'dump generate sample inputs into local file',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'sample_inputs': {
+                            'type': 'array',
+                            'description': 'generated sample inputs',
+                            'items': {
+                                'type': 'string'
+                            }
+                        },
+                    },
+                    'required': ['sample_inputs']
+                }
+            },
         ]
 
     def check_env(self):
@@ -233,11 +263,12 @@ class CopilotContext:
         if finish_reason == 'function_call':
             function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
             function_name = getattr(response.choices[0].message.function_call, "name", "")
-            function_arguments = json.loads(function_call)
             if function_name == 'dump_flow':
+                function_arguments = json.loads(function_call)
                 dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'read_local_file':
+                function_arguments = json.loads(function_call)
                 file_content = read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
@@ -247,6 +278,7 @@ class CopilotContext:
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_local_folder':
+                function_arguments = json.loads(function_call)
                 files_content = read_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
@@ -255,5 +287,16 @@ class CopilotContext:
                     request_args_dict = self.format_request_dict('auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
+            elif function_name == 'dump_sample_inputs':
+                function_arguments = json.loads(function_call)
+                dump_sample_inputs(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": ""})
+            elif function_name == 'python':
+                execution_result = {}
+                exec(function_call, globals(), execution_result)
+                self.messages.append({"role": "function", "name": function_name, "content":execution_result})
+                request_args_dict = self.format_request_dict('auto')
+                new_response = openai.ChatCompletion.create(**request_args_dict)
+                self.parse_gpt_response(new_response, print_info_func)
             else:
                 raise Exception(f'Invalid function name:{function_name}')

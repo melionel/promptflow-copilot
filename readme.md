@@ -8,7 +8,7 @@ The promptflow copilot is aimed build an intellegent copilot on top of ChatGPT t
 
 - Automatically create promptflow to accomplish the given goal [Done]
 - Understand user's existing code and turned it into promptflow [Done]
-- Help user to generate bulktest input data [TODO]
+- Help user to generate bulktest input data [Done]
 - Help user to generate evaluation flow [TODO]
 - Parse and improve an existing promptflow [TODO]
 
