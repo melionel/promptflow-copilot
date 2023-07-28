@@ -156,8 +156,15 @@ When create flow, folow below rules:
 17. Format all llm node's prompts in a list of dictionary, use the node's name as the key and the prompt as the value.
 18. Review all python functions, fix the grammer error and optimize the impemenation
 19. list all extra python packages you used in the python functions
+20. list flow's inputs' and outputs' schema
 
-Please format your answer into five parts: flow_yaml, explaination, python_functions, prompts, requirements
+Please format your answer into seven parts: flow_yaml, explaination, python_functions, prompts, requirements, flow_inputs_schema, flow_outputs_schema
+
+Pay attention:
+python_functions should be a list of dictionary, use the function's name as the key and the json string as the value.
+prompts should be a list of dictionary, use the node's name as the key and the prompt as the value.
+flow_inputs_schema should be a list of dictionary, use the input's name as the key and the schema as the value.
+flow_outputs_schema should be a list of dictionary, use the output's name as the key and the schema as the value.
 
 for example:
 flow_yaml:
@@ -170,7 +177,7 @@ at last, we use a llm tool to classify the website according to the content we f
 python_functions:
 [
   {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
-  {prepare_examples" "from promptflow import tool\n@tool\ndef prepare_examples():\n    return [\n        {\n            \"url\": \"https://play.google.com/store/apps/details?id=com.spotify.music\",\n            \"text_content\": \"Spotify is a free music and podcast streaming app with millions of songs, albums, and \"\n                            \"original podcasts. It also offers audiobooks, so users can enjoy thousands of stories. \"\n                            \"It has a variety of features such as creating and sharing music playlists, discovering \"\n                            \"new music, and listening to popular and exclusive podcasts. It also has a Premium \"\n                            \"subscription option which allows users to download and listen offline, and access \"\n                            \"ad-free music. It is available on all devices and has a variety of genres and artists \"\n                            \"to choose from.\",\n            \"category\": \"App\",\n            \"evidence\": \"Both\"\n        },\n        {\n            \"url\": \"https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw\",\n            \"text_content\": \"NFL Sunday Ticket is a service offered by Google LLC that allows users to watch NFL \"\n                            \"games on YouTube. It is available in 2023 and is subject to the terms and privacy policy \"\n                            \"of Google LLC. It is also subject to YouTube's terms of use and any applicable laws.\",\n            \"category\": \"Channel\",\n            \"evidence\": \"URL\"\n        }\n    ]"}
+  {"prepare_examples" "from promptflow import tool\n@tool\ndef prepare_examples():\n    return [\n        {\n            \"url\": \"https://play.google.com/store/apps/details?id=com.spotify.music\",\n            \"text_content\": \"Spotify is a free music and podcast streaming app with millions of songs, albums, and \"\n                            \"original podcasts. It also offers audiobooks, so users can enjoy thousands of stories. \"\n                            \"It has a variety of features such as creating and sharing music playlists, discovering \"\n                            \"new music, and listening to popular and exclusive podcasts. It also has a Premium \"\n                            \"subscription option which allows users to download and listen offline, and access \"\n                            \"ad-free music. It is available on all devices and has a variety of genres and artists \"\n                            \"to choose from.\",\n            \"category\": \"App\",\n            \"evidence\": \"Both\"\n        },\n        {\n            \"url\": \"https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw\",\n            \"text_content\": \"NFL Sunday Ticket is a service offered by Google LLC that allows users to watch NFL \"\n                            \"games on YouTube. It is available in 2023 and is subject to the terms and privacy policy \"\n                            \"of Google LLC. It is also subject to YouTube's terms of use and any applicable laws.\",\n            \"category\": \"Channel\",\n            \"evidence\": \"URL\"\n        }\n    ]"}
   {"fetch_text_content_from_url": "from promptflow import tool\nimport requests\nimport bs4\n\n\n@tool\ndef fetch_text_content_from_url(url: str):\n    # Send a request to the URL\n    try:\n        headers = {\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) \"\n                                 \"Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.35\"}\n        response = requests.get(url, headers=headers)\n        if response.status_code == 200:\n            # Parse the HTML content using BeautifulSoup\n            soup = bs4.BeautifulSoup(response.text, 'html.parser')\n            soup.prettify()\n            return soup.get_text()[:2000]\n        else:\n            msg = f\"Get url failed with status code {response.status_code}.\nURL: {url}\nResponse: \" \\n                  f\"{response.text[:100]}\"\n            print(msg)\n            return \"No available content\"\n    except Exception as e:\n        print(\"Get url failed with error: {}\".format(e))\n        return \"No available content\""}
 ]
 
@@ -182,3 +189,12 @@ prompts:
 
 requirements:
 "beautifulsoup4\n"
+
+flow_inputs_schema:
+[{"url": {"type": "string", "description": "The url of the website to be classified."}}]
+
+flow_outputs_schema:
+[
+  {"category": {"type": "string", "description": "The category of the website."}},
+  {"evidence": {"type": "string", "description": "The evidence of the classification."}}
+]

@@ -13,7 +13,7 @@ def generate_random_folder_name():
 
     return folder_name
 
-def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, target_folder, print_info_func):
+def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, target_folder, print_info_func, flow_inputs_schema=None, flow_outputs_schema=None):
     '''
     dump flow yaml and explaination and python functions into different files
     '''
@@ -99,7 +99,7 @@ def extract_functions_arguments(function_call):
     except JSONDecodeError:
         pattern = r'\\\n'
         function_call = re.sub(pattern, r'\\n', str(function_call))
-        return json.loads(function_call)
+        return extract_functions_arguments(function_call)
         
 
 class CopilotContext:
@@ -154,6 +154,20 @@ class CopilotContext:
                         'requirements': {
                             'type': 'string',
                             'description': 'pip requirements'
+                        },
+                        'flow_inputs_schema': {
+                            'type': 'array',
+                            'description': 'flow inputs schemas',
+                            'items': {
+                                'type': 'string'
+                            }
+                        },
+                        'flow_outputs_schema': {
+                            'type': 'array',
+                            'description': 'flow outputs schemas',
+                            'items': {
+                                'type': 'string'
+                            }
                         },
                     },
                     'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts', 'requirements']
@@ -305,7 +319,10 @@ class CopilotContext:
             elif function_name == 'python':
                 execution_result = {}
                 exec(function_call, globals(), execution_result)
-                self.messages.append({"role": "function", "name": function_name, "content":execution_result})
+                str_result = {}
+                for key, value in execution_result.items():
+                    str_result[key] = str(value)
+                self.messages.append({"role": "function", "name": function_name, "content":json.dumps(str_result)})
                 request_args_dict = self.format_request_dict('auto')
                 new_response = openai.ChatCompletion.create(**request_args_dict)
                 self.parse_gpt_response(new_response, print_info_func)
