@@ -93,13 +93,101 @@ def dump_sample_inputs(sample_inputs, target_folder, print_info_func):
                 f.write(sample_input + '\n')
         print_info_func(f'Generated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
 
+def dump_evaluation_flow(sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func):
+    if not os.path.exists(flow_folder):
+        print_info_func(f'Before generate the evaluation flow, please generate the flow first')
+        return
+    
+    if not os.path.exists(eval_flow_folder):
+        os.mkdir(eval_flow_folder)
+        print_info_func(f'Create flow folder:{eval_flow_folder}')
+
+    if sample_inputs is None:
+        print_info_func('No sample inputs generated, you may need to generate the sample inputs manually')
+
+    print_info_func('Dumping evalutaion flow...')
+    evaluation_flow_template_folder = '.\evaluation_template'
+    file_list = os.listdir(evaluation_flow_template_folder)
+    import shutil
+    for file_name in file_list:
+        source_file_path = os.path.join(evaluation_flow_template_folder, file_name)
+        destination_file_path = os.path.join(eval_flow_folder, file_name)
+        shutil.copy(source_file_path, destination_file_path)
+
+    # currently only support one output
+    flow_outputs_schema = flow_outputs_schema[0]
+    first_output_column = ''
+
+    with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+        for sample_input in sample_inputs:
+            if sample_input is None:
+                continue
+            else:
+                sample_input = json.loads(sample_input)
+                flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else json.loads(flow_outputs_schema)
+                for k,v in flow_outputs_schema.items():
+                    sample_input[k] = 'expected_output'
+                first_output_column = next(iter(flow_outputs_schema)) if flow_outputs_schema else ''
+            f.write(json.dumps(sample_input) + '\n')
+
+    goundtruth_name = f'data.{first_output_column}'
+    prediction_name = f'run.outputs.{first_output_column}'
+
+    sdk_eval_sample_code = f"""
+import promptflow as pf
+import json
+
+# Set flow path and run input data
+flow = "{flow_folder}" # set the flow directory
+data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl" # set the data file
+
+# create a run
+base_run = pf.run(
+    flow=flow,
+    data=data,
+)
+
+# set eval flow path
+eval_flow = "{eval_flow_folder}"
+data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl"
+
+# run the flow with exisiting run
+eval_run = pf.run(
+    flow=eval_flow,
+    data=data,
+    run=base_run,
+    column_mapping={{"groundtruth": "${{{goundtruth_name}}}","prediction": "${{{prediction_name}}}"}},  # map the url field from the data to the url input of the flow
+)
+
+# stream the run until it's finished
+pf.stream(eval_run)
+
+# get the inputs/outputs details of a finished run.
+details = pf.get_details(eval_run)
+details.head(10)
+
+# view the metrics of the eval run
+metrics = pf.get_metrics(eval_run)
+print(json.dumps(metrics, indent=4))
+
+# visualize both the base run and the eval run
+pf.visualize([base_run, eval_run])
+
+"""
+    with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
+        f.write(sdk_eval_sample_code)
+
+    print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
+
 def extract_functions_arguments(function_call):
     try:
         return json.loads(function_call)
-    except JSONDecodeError:
+    except JSONDecodeError as ex:
         pattern = r'\\\n'
-        function_call = re.sub(pattern, r'\\n', str(function_call))
-        return extract_functions_arguments(function_call)
+        updated_function_call = re.sub(pattern, r'\\n', str(function_call))
+        if updated_function_call == function_call:
+            raise ex
+        return extract_functions_arguments(updated_function_call)
         
 
 class CopilotContext:
@@ -218,6 +306,30 @@ class CopilotContext:
                     'required': ['sample_inputs']
                 }
             },
+            {
+                'name': 'dump_evaluation_flow',
+                'description': 'create evaluation flow',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'sample_inputs': {
+                            'type': 'array',
+                            'description': 'generated sample inputs',
+                            'items': {
+                                'type': 'string'
+                            }
+                        },
+                        'flow_outputs_schema': {
+                            'type': 'array',
+                            'description': 'flow outputs schemas',
+                            'items': {
+                                'type': 'string'
+                            }
+                        },
+                    },
+                    'required': ['sample_inputs', 'flow_outputs_schema']
+                }
+            },
         ]
 
     def check_env(self):
@@ -315,6 +427,10 @@ class CopilotContext:
             elif function_name == 'dump_sample_inputs':
                 function_arguments = extract_functions_arguments(function_call)
                 dump_sample_inputs(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": ""})
+            elif function_name == 'dump_evaluation_flow':
+                function_arguments = extract_functions_arguments(function_call)
+                dump_evaluation_flow(**function_arguments, flow_folder=self.local_folder, eval_flow_folder=self.local_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'python':
                 execution_result = {}
