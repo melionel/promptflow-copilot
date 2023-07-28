@@ -1,6 +1,8 @@
 import os
 import json
 import openai
+import re
+from json import JSONDecodeError
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -90,6 +92,15 @@ def dump_sample_inputs(sample_inputs, target_folder, print_info_func):
                     sample_input = sample_input if type(sample_input) == str else json.dumps(sample_input)
                 f.write(sample_input + '\n')
         print_info_func(f'Generated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
+
+def extract_functions_arguments(function_call):
+    try:
+        return json.loads(function_call)
+    except JSONDecodeError:
+        pattern = r'\\\n'
+        function_call = re.sub(pattern, r'\\n', str(function_call))
+        return json.loads(function_call)
+        
 
 class CopilotContext:
     def __init__(self) -> None:
@@ -264,11 +275,11 @@ class CopilotContext:
             function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
-                function_arguments = json.loads(function_call)
+                function_arguments = extract_functions_arguments(function_call)
                 dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
-                self.messages.append({"role": "function", "name": function_name, "content": ""})
+                self.messages.append({"role": "function", "name": function_name, "content": ''})
             elif function_name == 'read_local_file':
-                function_arguments = json.loads(function_call)
+                function_arguments = extract_functions_arguments(function_call)
                 file_content = read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
@@ -278,7 +289,7 @@ class CopilotContext:
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_local_folder':
-                function_arguments = json.loads(function_call)
+                function_arguments = extract_functions_arguments(function_call)
                 files_content = read_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
@@ -288,7 +299,7 @@ class CopilotContext:
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_sample_inputs':
-                function_arguments = json.loads(function_call)
+                function_arguments = extract_functions_arguments(function_call)
                 dump_sample_inputs(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'python':
