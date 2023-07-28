@@ -9,7 +9,7 @@ The promptflow copilot is aimed build an intellegent copilot on top of ChatGPT t
 - Automatically create promptflow to accomplish the given goal [Done]
 - Understand user's existing code and turned it into promptflow [Done]
 - Help user to generate bulktest input data [Done]
-- Help user to generate evaluation flow [TODO]
+- Help user to generate evaluation flow [Done]
 - Parse and improve an existing promptflow [TODO]
 
 ## How to use
@@ -25,6 +25,35 @@ pip install -r requrements.txt
 ```bash
 python main.py
 ```
+
+- chat with promptflow copilot
+
+for example:
+
+1. Ask copilot to create a promptflow to achieve your goal:
+```
+my goal: check if there are gramma mistakes in a github repo's files, the file may be written with python, c, go or any programming language; if found gramma mistakes, create a pull request to fix the gramma mistakes
+```
+
+2. Ask copilot to create promptflow based on your own python application
+```
+I have a python program in my_app.py, please convert it into a flow
+```
+or
+```
+I have a python program in the folder C:\LangchainTests\chat_with_pdf, can you understand it and help to convert it into a flow
+```
+
+3. Ask copilot to generate bulktest input data
+```
+geneate bulktest inputs data for the flow
+```
+
+4. Ask copilot to generate evaluation flow
+```
+generate evaluation flow for the flow
+```
+
 
 ## Known issue
 

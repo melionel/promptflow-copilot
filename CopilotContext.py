@@ -81,6 +81,10 @@ def read_local_folder(path, print_info_func):
         return json.dumps(file_contents_dict)
 
 def dump_sample_inputs(sample_inputs, target_folder, print_info_func):
+    if not os.path.exists(target_folder):
+        print_info_func(f'Before generate the sample inputs, please generate the flow first')
+        return
+    
     if sample_inputs is None:
         print_info_func('Failed to generate inputs for your flow, please try again')
     else:
