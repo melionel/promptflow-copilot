@@ -2,6 +2,7 @@ import os
 import json
 import openai
 import re
+from pathlib import Path
 from json import JSONDecodeError
 from datetime import datetime
 from dotenv import load_dotenv
@@ -56,7 +57,7 @@ def read_local_file(path, print_info_func):
         with open(path, 'r', encoding="utf-8") as f:
             return f.read()
         
-def read_local_folder(path, print_info_func):
+def read_local_folder(path, print_info_func, included_file_types=['.ipynb', '.py']):
     if not os.path.exists(path):
         print_info_func(f'{path} does not exists')
         return
@@ -66,7 +67,8 @@ def read_local_folder(path, print_info_func):
 
         for root, _, files in os.walk(path):
             for file_name in files:
-                if not file_name.endswith('.ipynb') and not file_name.endswith('.py'):
+                file_ext = Path(file_name).suffix
+                if not file_ext in included_file_types:
                     continue
                 subfolder_name = os.path.relpath(root, start=path)
                 if subfolder_name == '.':
@@ -79,6 +81,14 @@ def read_local_folder(path, print_info_func):
                     key = subfolder_name + file_name
                     file_contents_dict[key] = file_content
         return json.dumps(file_contents_dict)
+
+def read_flow_from_local_folder(path, print_info_func):
+    print_info_func(f'read existing flow from folder:{path}')
+    return read_local_folder(path, print_info_func, included_file_types=['.yaml', '.py', '.jinja2', '.txt'])
+
+def read_flow_from_local_file(path, print_info_func):
+    print_info_func(f'read existing flow from file:{path}')
+    return read_local_file(path, print_info_func)
 
 def dump_sample_inputs(sample_inputs, target_folder, print_info_func):
     if not os.path.exists(target_folder):
@@ -294,6 +304,34 @@ class CopilotContext:
                 }
             },
             {
+                'name': 'read_flow_from_local_file',
+                'description': 'read an existing flow from a local file',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {
+                            'type': 'string',
+                            'description': 'path to local file'
+                        }
+                    },
+                    'required': ['path']
+                }
+            },
+            {
+                'name': 'read_flow_from_local_folder',
+                'description': 'read an existing flow from local folder',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {
+                            'type': 'string',
+                            'description': 'path to local folder'
+                        }
+                    },
+                    'required': ['path']
+                }
+            },
+            {
                 'name': 'dump_sample_inputs',
                 'description': 'dump generate sample inputs into local file',
                 'parameters': {
@@ -436,6 +474,28 @@ class CopilotContext:
                 function_arguments = extract_functions_arguments(function_call)
                 dump_evaluation_flow(**function_arguments, flow_folder=self.local_folder, eval_flow_folder=self.local_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
+            elif function_name == 'read_flow_from_local_file':
+                function_arguments = extract_functions_arguments(function_call)
+                file_content = read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
+                if not file_content:
+                    print_info_func('you ask me to read flow from a file, but the file does not exists')
+                else:
+                    self.local_folder = os.path.dirname(function_arguments['path'])
+                    self.messages.append({"role": "function", "name": function_name, "content":file_content})
+                    request_args_dict = self.format_request_dict('auto')
+                    new_response = openai.ChatCompletion.create(**request_args_dict)
+                    self.parse_gpt_response(new_response, print_info_func)
+            elif function_name == 'read_flow_from_local_folder':
+                function_arguments = extract_functions_arguments(function_call)
+                self.local_folder = function_arguments['path']
+                files_content = read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
+                if not files_content:
+                    print_info_func('you ask me to read flow from a folder, but the folder does not exists')
+                else:
+                    self.messages.append({"role": "function", "name": function_name, "content":files_content})
+                    request_args_dict = self.format_request_dict('auto')
+                    new_response = openai.ChatCompletion.create(**request_args_dict)
+                    self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'python':
                 execution_result = {}
                 exec(function_call, globals(), execution_result)
