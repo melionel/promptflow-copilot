@@ -66,7 +66,7 @@ def read_local_folder(path, print_info_func):
 
         for root, _, files in os.walk(path):
             for file_name in files:
-                if file_name.endswith('.ipynb') or file_name.endswith('.gitignore'):
+                if not file_name.endswith('.ipynb') and not file_name.endswith('.py'):
                     continue
                 subfolder_name = os.path.relpath(root, start=path)
                 if subfolder_name == '.':
