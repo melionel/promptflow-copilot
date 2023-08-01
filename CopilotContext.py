@@ -83,10 +83,14 @@ def read_local_folder(path, print_info_func, included_file_types=['.ipynb', '.py
         return json.dumps(file_contents_dict)
 
 def read_flow_from_local_folder(path, print_info_func):
+    if os.path.isfile(path):
+        return read_local_file(path, print_info_func)
     print_info_func(f'read existing flow from folder:{path}')
     return read_local_folder(path, print_info_func, included_file_types=['.yaml', '.py', '.jinja2', '.txt'])
 
 def read_flow_from_local_file(path, print_info_func):
+    if os.path.isdir(path):
+        return read_local_folder(path, print_info_func)
     print_info_func(f'read existing flow from file:{path}')
     return read_local_file(path, print_info_func)
 
