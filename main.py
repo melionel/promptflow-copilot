@@ -1,51 +1,44 @@
-import tkinter as tk
-from tkinter import ttk
-from tkinter import Scrollbar
 from tkinter import messagebox
+import tkinter as tk
+
+import customtkinter
+from PIL import Image, ImageTk
 from CopilotContext import CopilotContext
 import traceback
 
-welcome_message = """
-Copilot: Welcome to use promptflow copilot! I can help you to create a promptflow to accomplish your goal.
+welcome_message = """Welcome to use promptflow copilot! I can help you to create a promptflow to accomplish your goal.
 Although the auto generated flow might be not right or lack of some implementation details, it should be a good start to develop your own flow. Enjoy!
-
-Before start, remember to set below variables in the pfcopilot.env file.
-
-"""
+Before start, remember to set pfcopilot.env file."""
 
 checking_environment_message = "Checking your environment..."
 
-environment_ready_message = """You are all set, let's start! Pleae tell me your goal you want to accomplish using promptflow.
-"""
+environment_ready_message = "You are all set, let's start! Pleae tell me your goal you want to accomplish using promptflow."
 
-environment_not_ready_message = """
-Your environment is not ready, please configure your environment and restart the window.
-"""
+environment_not_ready_message = "Your environment is not ready, please configure your environment and restart the window."
 
 entry_default_message = "Send a message..."
 
-BG_GRAY = "#ABB2B9"
-BG_COLOR = "#17202A"
-TEXT_COLOR = "#EAECEE"
-PILOT_TEXT_COLOR = "#6495ED"
+LABEL_COLOR = "green"
+USER_TEXT_COLOR = "#424245"
+PILOT_TEXT_COLOR = "#0010c4"
 
 USER_TAG = 'User'
 COPILOT_TAG = 'Copilot'
- 
-FONT = "Helvetica 14"
-FONT_BOLD = "Helvetica 13 bold"
+IMAGE_TAG = 'Image'
+
+current_tag = USER_TAG
 
 def get_response():
     try:
-        user_input = input_box.get(1.0, tk.END).strip('\n')
+        user_input = input_box.get()
         if user_input == entry_default_message:
             return
         add_to_chat(user_input, USER_TAG)
-        update_label.config(text='Status: Talking to GPT...')
+        update_label.configure(text='Talking to GPT...')
         app.update()
         copilot_context.ask_gpt(user_input, add_to_chat)
         chat_box.yview_moveto(1.0)
-        update_label.config(text="Status: Waiting for user's input...")
+        update_label.configure(text="Waiting for user's input...")
     except Exception:
         trace_back = traceback.format_exc()
         messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
@@ -53,89 +46,107 @@ def get_response():
 
 def start_over():
     try:
+        chat_box.configure(state=tk.NORMAL)
+        chat_box.delete(1.0, tk.END)
+        add_image_to_chat()
         add_to_chat("Okay, let's satrt over. Pleae tell me your goal you want to accomplish using promptflow")
         chat_box.yview_moveto(1.0)
         copilot_context.reset()
+        chat_box.configure(state=tk.DISABLED)
     except Exception:
         trace_back = traceback.format_exc()
         messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
         add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
         
 def add_to_chat(message, tag=COPILOT_TAG):
-    chat_box.config(state=tk.NORMAL)
-    chat_box.insert(tk.END, tag + ': ' + message + "\n\n", tag)
-    chat_box.config(state=tk.DISABLED)
+    global current_tag
+    chat_box.configure(state=tk.NORMAL)
+    if tag != current_tag:
+        add_image_to_chat(tag)
+        current_tag = tag
+    chat_box.insert(tk.END, message + "\n", tag)
+    chat_box.configure(state=tk.DISABLED)
     chat_box.yview_moveto(1.0)
-    input_box.delete(1.0, tk.END)
-    input_box.see("1.0")
-    input_box.mark_set(tk.INSERT, 1.0)
+    input_box.delete(0, tk.END)
     app.update()
+
+def add_image_to_chat(tag=COPILOT_TAG):
+    chat_box.image_create(tk.END, image=images_dict[tag], padx=10, pady=5)
+    chat_box.insert(tk.END, f"{tag}\n", IMAGE_TAG)
 
 def ctrl_enter_pressed(event):
     get_response()
 
-def on_entry_click(event):
-    if input_box.get(1.0, "end-1c").strip('\n') == entry_default_message:
-        input_box.delete(1.0, tk.END)
-        input_box.config(fg=TEXT_COLOR)
+def handle_selection(event):
+    widget = event.widget
+    index = widget.index("@%s,%s" % (event.x, event.y))
+    widget.tag_remove("sel", "1.0", "end")
+    widget.tag_add("sel", index, "%s+%dc" % (index, 1))
 
-def on_focus_out(event):
-    if input_box.get(1.0, "end-1c").strip('\n') == "":
-        input_box.insert(tk.END, entry_default_message)
-        input_box.config(fg="gray")
+customtkinter.set_appearance_mode("system")  # Modes: system (default), light, dark
+customtkinter.set_default_color_theme("blue")  # Themes: blue (default), dark-blue, green
 
 # Create the main application window
-app = tk.Tk()
+app = customtkinter.CTk()
 app.title("Promptflow Copilot")
+
+CHAT_FONT = customtkinter.CTkFont('system ui', 16)
+INPUT_FONT = customtkinter.CTkFont('Helvetica', 14)
+LABEL_FONT = customtkinter.CTkFont('Helvetica', 14)
+IMAGE_FONT = customtkinter.CTkFont('Helvetica', 12, 'bold')
+
 app.grid_rowconfigure(1, weight=1)
 app.grid_columnconfigure(1, weight=1)
 
 app.rowconfigure(0, minsize=10)
 app.rowconfigure(1, minsize=200)
 
-update_label = tk.Label(app, text="Status: Waiting for user's input...", foreground='green', font=FONT_BOLD, height=2)
-update_label.grid(row=0, sticky='nw')
+app.geometry("1280x800")
+app.minsize(400, 400)
+
+tk_image = ImageTk.PhotoImage(Image.open("copilot.ico"))
+app.wm_iconbitmap()
+app.iconphoto(False, tk_image)
+
+copilot_image = ImageTk.PhotoImage(Image.open("bot.png"))
+user_image = ImageTk.PhotoImage(Image.open("user.png"))
+images_dict = {USER_TAG: user_image, COPILOT_TAG: copilot_image}
+
+update_label = customtkinter.CTkLabel(app, text="Status: Waiting for user's input...", text_color=LABEL_COLOR, font=LABEL_FONT, padx=10)
+update_label.grid(row=0, sticky='nwse')
 
 # init CopilotContext
 copilot_context = CopilotContext()
 
 # Create a text widget to display the chat conversation
-chat_box = tk.Text(app, bg=BG_COLOR, fg=PILOT_TEXT_COLOR, font=FONT)
+chat_box = tk.Text(app, font=CHAT_FONT)
 chat_box.grid(row=1, column=0, columnspan=10, sticky='nsew')
-chat_box.tag_config('User', background=BG_COLOR, foreground = TEXT_COLOR)
-chat_box.tag_config('Copilot',  background=BG_COLOR, foreground = PILOT_TEXT_COLOR)
+chat_box.tag_config(USER_TAG, foreground=USER_TEXT_COLOR, lmargin1=10, lmargin2=10, rmargin=50, spacing1=5, spacing3=10, wrap=tk.WORD)
+chat_box.tag_config(COPILOT_TAG, foreground = PILOT_TEXT_COLOR, lmargin1=10, lmargin2=10, rmargin=50, spacing1=5, spacing3=10, wrap=tk.WORD)
+chat_box.tag_config(IMAGE_TAG, lmargin1=10, lmargin2=10, rmargin=50, spacing1=5, spacing3=10, wrap=tk.WORD, font=IMAGE_FONT)
 
-chat_box.insert(tk.END, welcome_message, COPILOT_TAG)
-chat_box.config(state=tk.DISABLED)
-# scrollbar = Scrollbar(chat_box)
-# scrollbar.place(relheight=1, relx=0.974)
+chat_box.tag_bind("User", "<Button-1>", handle_selection)
+chat_box.tag_bind("Copilot", "<Button-1>", handle_selection)
 
-# create a text box to accept user input
-input_box = tk.Text(app, bg="#2C3E50", fg="grey", font=FONT, height=2)
-input_box.grid(row=2, column=0, columnspan=9, sticky='nsew')
+# create an entry box to accept user input
+input_box = customtkinter.CTkEntry(app, font=INPUT_FONT, placeholder_text=entry_default_message, corner_radius=5, height=5)
+input_box.grid(row=2, column=0, columnspan=8, sticky='nsew', padx=(5, 5), pady=(5, 5))
 input_box.bind("<Control-Return>", ctrl_enter_pressed)
-input_box.bind("<FocusIn>", on_entry_click)
-input_box.bind("<FocusOut>", on_focus_out)
+input_box.bind("<Return>", ctrl_enter_pressed)
 
-input_box.focus_set()
-input_box.insert(1.0, entry_default_message)
-
-# Create buttons with ttk style
-button_style = ttk.Style()
-button_style.configure('TButton', font=('Helvetica', 12))
-
-reset_button = ttk.Button(app, text="Start over", command=start_over, style='TButton')
-reset_button.grid(row=0, column=9, columnspan=1, sticky='nsew')
-send_button = ttk.Button(app, text="Send", command=get_response, style='TButton')
-send_button.grid(row=2, column=9, columnspan=1, sticky='nsew')
+reset_button = customtkinter.CTkButton(app, text="Start over", command=start_over)
+reset_button.grid(row=0, column=9, columnspan=1, sticky='nsew', padx=(0, 10), pady=(5, 5))
+send_button = customtkinter.CTkButton(app, text="Send", command=get_response, border_width=0, corner_radius=5)
+send_button.grid(row=2, column=9, columnspan=1, sticky='nsew', padx=(0, 10), pady=(5, 5))
 
 # check environment
 env_ready, msg = copilot_context.check_env()
+add_to_chat(welcome_message, COPILOT_TAG)
 add_to_chat(checking_environment_message, COPILOT_TAG)
 if env_ready:
     add_to_chat(environment_ready_message, COPILOT_TAG)
 else:
-    add_to_chat(environment_not_ready_message + msg + '\n', COPILOT_TAG)
+    add_to_chat(environment_not_ready_message + msg, COPILOT_TAG)
 
 # Run the main event loop
 app.mainloop()
