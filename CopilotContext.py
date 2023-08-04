@@ -420,7 +420,6 @@ class CopilotContext:
         return request_args_dict         
 
     def ask_gpt(self, content, print_info_func):
-        print_info_func('Contact ChatGPT for furthur help, please wait...')
         self.messages.append({'role':'user', 'content':content})
         request_args_dict = self.format_request_dict('auto')
         

@@ -1,2 +1,4 @@
 openai
 python-dotenv
+customtkinter
+pillow
