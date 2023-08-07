@@ -1,3 +1,4 @@
 pfcopilot.env
 __pycache__/CopilotContext.cpython-39.pyc
 test_temp.py
+pfcopilot_err.log
