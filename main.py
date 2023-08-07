@@ -125,7 +125,7 @@ app.rowconfigure(1, minsize=200)
 app.geometry("1280x800")
 app.minsize(400, 400)
 
-tk_image = ImageTk.PhotoImage(Image.open("copilot.ico"))
+tk_image = ImageTk.PhotoImage(Image.open("icon.png"))
 app.wm_iconbitmap()
 app.iconphoto(False, tk_image)
 
