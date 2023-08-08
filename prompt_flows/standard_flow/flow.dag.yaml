@@ -1,0 +1,62 @@
+id: template_standard_flow
+name: Template Standard Flow
+inputs:
+  text:
+    type: string
+    default: I have a python program in my_app.py, please convert it into a flow
+outputs:
+  ai_output:
+    type: string
+    reference: ${ask_copilot.output}
+nodes:
+- name: ask_copilot
+  type: python
+  source:
+    type: code
+    path: ask_copilot.py
+  inputs:
+    connection: aoai-eus
+    functions: ${functions.output}
+    system_prompt: ${system_prompt.output}
+    built_in_tools_prompt: ${built_in_tools_prompt.output}
+    llm_tool_prompt: ${llm_tool_prompt.output}
+    python_tool_prompt: ${python_tool_prompt.output}
+    instruction_prompt: ${instruction_prompt.output}
+    user_prompt: ${inputs.text}
+    model_or_deployment_name: gpt-35-turbo-16k-0613
+- name: functions
+  type: python
+  source:
+    type: code
+    path: functions.py
+  inputs: {}
+- name: system_prompt
+  type: prompt
+  source:
+    type: code
+    path: system_prompt.jinja2
+  inputs: {}
+- name: built_in_tools_prompt
+  type: prompt
+  source:
+    type: code
+    path: built_in_tools_prompt.jinja2
+  inputs: {}
+- name: python_tool_prompt
+  type: prompt
+  source:
+    type: code
+    path: python_tool_prompt.jinja2
+  inputs: {}
+- name: llm_tool_prompt
+  type: prompt
+  source:
+    type: code
+    path: llm_tool_prompt.jinja2
+  inputs: {}
+- name: instruction_prompt
+  type: prompt
+  source:
+    type: code
+    path: instruction_prompt.jinja2
+  inputs: {}
