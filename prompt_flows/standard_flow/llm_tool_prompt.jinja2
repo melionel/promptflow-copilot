@@ -1,0 +1,13 @@
+[LLM TOOLS]
+promptflow.tools.llm:
+  description: llm can understand natual language input, and generate hunman-like answers to text. llm is best at answering open-ended and creative questions. You can treat llm as a person who has the knowledge gained from internet before year 2022, and can understand and anwser your question like a person. Remember that, llm does not have direct access to the internet, you cannot use it to accomplish task that needs to access the internet.
+  inputs:
+    query:
+      description: input text sent to the large language model
+    deployment_name:
+      description: llm deployment_name
+    max_tokens:
+      description: max tokens to use
+    temperature: 
+      description: configuration for llm
+[END LLM TOOLS]

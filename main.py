@@ -7,9 +7,30 @@ from CopilotContext import CopilotContext
 import traceback
 from constants import USER_TAG, COPILOT_TAG, IMAGE_TAG, USER_TEXT_COLOR, LABEL_COLOR, PILOT_TEXT_COLOR
 from constants import entry_default_message, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
+import logging
 
-
+log_file_name = "pfcopilot_err.log"
 current_tag = USER_TAG
+
+def setup_logger(log_file):
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.ERROR)
+    
+    logger.addHandler(file_handler)
+
+    return logger
+
+def handle_exception(exc_traceback):
+    messagebox.showerror("Error occurred. Please fix the error and try again.", exc_traceback)
+    add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
+    update_label.configure(text="Waiting for user's input...")
+    logger.error(exc_traceback)
 
 def get_response():
     try:
@@ -24,8 +45,7 @@ def get_response():
         update_label.configure(text="Waiting for user's input...")
     except Exception:
         trace_back = traceback.format_exc()
-        messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
-        add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
+        handle_exception(trace_back)
 
 def start_over():
     try:
@@ -38,8 +58,7 @@ def start_over():
         chat_box.configure(state=tk.DISABLED)
     except Exception:
         trace_back = traceback.format_exc()
-        messagebox.showerror("Error occurred. Please fix the error and try again.", trace_back)
-        add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
+        handle_exception(trace_back)
         
 def add_to_chat(message, tag=COPILOT_TAG):
     global current_tag
@@ -87,7 +106,7 @@ app.rowconfigure(1, minsize=200)
 app.geometry("1280x800")
 app.minsize(400, 400)
 
-tk_image = ImageTk.PhotoImage(Image.open("copilot.ico"))
+tk_image = ImageTk.PhotoImage(Image.open("icon.png"))
 app.wm_iconbitmap()
 app.iconphoto(False, tk_image)
 
@@ -130,6 +149,10 @@ if env_ready:
     add_to_chat(environment_ready_message, COPILOT_TAG)
 else:
     add_to_chat(environment_not_ready_message + msg, COPILOT_TAG)
+
+
+# setup logging
+logger = setup_logger(log_file_name)
 
 # Run the main event loop
 app.mainloop()

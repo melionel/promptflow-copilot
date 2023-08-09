@@ -1,17 +1,29 @@
+from typing import List
 from promptflow import tool
 
 
 @tool
-def line_process(groundtruth: str, prediction: str):
+def aggregate(processed_results: List[str]):
     """
-    This tool processes the prediction of a single line and returns the processed result.
+    This tool aggregates the processed result of all lines and log metric.
 
-    :param groundtruth: the groundtruth of a single line.
-    :param prediction: the prediction of a single line.
+    :param processed_results: List of the output of line_process node.
     """
 
-    processed_result = ""
+    # Add your aggregation logic here, for example:
+    total_lines = len(processed_results)
+    right_lines = 0
+    for line in processed_results:
+        if line == "right":
+            right_lines += 1
 
-    # Add your line processing logic here
+    aggregated_results = {
+        "total_lines": total_lines,
+        "right_lines": right_lines,
+    }
 
-    return processed_result
+    # Add your metric logging logic here, for example:
+    from promptflow import log_metric
+    log_metric(key="accuracy", value=right_lines / total_lines)
+
+    return aggregated_results
