@@ -16,7 +16,7 @@ The promptflow copilot is aimed build an intellegent copilot on top of ChatGPT t
 
 - From root folder, install the requirements using
 ```bash
-pip install -r requrements.txt
+pip install -r requirements.txt
 ```
 
 - Create a pfcopilot.env file in root folder, reference my_pfcopilot.env to set the corresponding environment variables in your own pfcopilot.env file.
