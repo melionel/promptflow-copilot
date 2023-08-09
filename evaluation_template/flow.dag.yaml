@@ -1,12 +1,10 @@
+id: template_eval_flow
+name: Template Evaluation Flow
 inputs:
   groundtruth:
     type: string
   prediction:
     type: string
-  variant_id:
-    type: string
-  line_number:
-    type: int
 outputs:
   results:
     type: string
@@ -27,8 +25,4 @@ nodes:
     path: aggregate.py
   inputs:
     processed_results: ${line_process.output}
-    variant_ids: ${inputs.variant_id}
-    line_numbers: ${inputs.line_number}
   aggregation: true
-id: template_eval_flow
-name: Template Evaluation Flow
