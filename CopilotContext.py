@@ -401,12 +401,12 @@ class CopilotContext:
         ]
         self.local_folder = generate_random_folder_name()
 
-    def format_request_dict(self, function_call=None):
+    def format_request_dict(self, function_call=None, temperature=0):
         request_args_dict = {
             "messages": self.messages,
             "functions": self.my_custom_functions,
             "stream": False,
-            "temperature": 0
+            "temperature": temperature
         }
 
         if function_call:
@@ -419,9 +419,14 @@ class CopilotContext:
 
         return request_args_dict         
 
-    def ask_gpt(self, content, print_info_func):
+    def ask_gpt(self, content, print_info_func, destination=None, model=None, temperature=0):
         self.messages.append({'role':'user', 'content':content})
-        request_args_dict = self.format_request_dict('auto')
+        if destination != None:
+            self.local_folder = destination
+        if model != None:
+            self.openai_model = model
+
+        request_args_dict = self.format_request_dict('auto', temperature)
         
         response = openai.ChatCompletion.create(**request_args_dict)
         self.parse_gpt_response(response, print_info_func)
