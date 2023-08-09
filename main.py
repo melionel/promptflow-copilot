@@ -5,30 +5,11 @@ import customtkinter
 from PIL import Image, ImageTk
 from CopilotContext import CopilotContext
 import traceback
+from constants import USER_TAG, COPILOT_TAG, IMAGE_TAG, USER_TEXT_COLOR, LABEL_COLOR, PILOT_TEXT_COLOR
+from constants import entry_default_message, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
 import logging
 
-welcome_message = """Welcome to use promptflow copilot! I can help you to create a promptflow to accomplish your goal.
-Although the auto generated flow might be not right or lack of some implementation details, it should be a good start to develop your own flow. Enjoy!
-Before start, remember to set pfcopilot.env file."""
-
-checking_environment_message = "Checking your environment..."
-
-environment_ready_message = "You are all set, let's start! Pleae tell me your goal you want to accomplish using promptflow."
-
-environment_not_ready_message = "Your environment is not ready, please configure your environment and restart the window."
-
-entry_default_message = "Send a message..."
-
 log_file_name = "pfcopilot_err.log"
-
-LABEL_COLOR = "green"
-USER_TEXT_COLOR = "#424245"
-PILOT_TEXT_COLOR = "#0010c4"
-
-USER_TAG = 'User'
-COPILOT_TAG = 'Copilot'
-IMAGE_TAG = 'Image'
-
 current_tag = USER_TAG
 
 def setup_logger(log_file):
