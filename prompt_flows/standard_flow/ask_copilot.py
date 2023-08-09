@@ -1,8 +1,5 @@
 from typing import Union
 
-import sys
-sys.path.append('..')
-
 from promptflow import tool
 from promptflow.connections import AzureOpenAIConnection, OpenAIConnection
 from pf_copilot import PfCopilot
