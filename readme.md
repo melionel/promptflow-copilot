@@ -20,11 +20,20 @@ pip install -r requirements.txt
 ```
 
 - Create a pfcopilot.env file in root folder, reference my_pfcopilot.env to set the corresponding environment variables in your own pfcopilot.env file.
-
-- From the root folder, run
-```bash
-python main.py
-```
+- Currently, we provide two ways to chat with promptflow copilot
+  - Chat with UI: from the root folder, run
+    ```bash
+    python main.py
+    ```
+    Then you can chat with it like that:
+    ![CopilotUI](copilot_ui.png)
+  - Chat with CLI: from the root folder, run
+    ```bash
+    python copilot_cli.py
+    ```
+    Then you can chat with it like that:
+    ![CopilotCLI](copilot_cli.png)
+    You can end the chat by type `exit` in the command line.
 
 - chat with promptflow copilot
 
