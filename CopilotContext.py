@@ -451,6 +451,7 @@ class CopilotContext:
 
     def ask_gpt(self, content, print_info_func):
         user_intent = self._intent_user_input(content)
+        print(f'User intent: {user_intent}')
         self.messages.append({'role':'user', 'content':user_intent})
         request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
         
