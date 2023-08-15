@@ -7,6 +7,8 @@ from json import JSONDecodeError
 from datetime import datetime
 from dotenv import load_dotenv
 
+from jinja2 import Environment, FileSystemLoader
+
 def generate_random_folder_name():
     # Get the current timestamp as a string
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -49,6 +51,9 @@ def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, 
         f.write(requirements)
 
 def read_local_file(path, print_info_func):
+    if os.path.isdir(path):
+        return read_local_folder(path, print_info_func)
+    
     if not os.path.exists(path):
         print_info_func(f'{path} does not exists')
         return
@@ -58,6 +63,9 @@ def read_local_file(path, print_info_func):
             return f.read()
         
 def read_local_folder(path, print_info_func, included_file_types=['.ipynb', '.py']):
+    if os.path.isfile(path):
+        return read_local_file(path, print_info_func)
+    
     if not os.path.exists(path):
         print_info_func(f'{path} does not exists')
         return
@@ -227,7 +235,10 @@ class CopilotContext:
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
         self.local_folder = generate_random_folder_name()
-        
+
+        jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
+        self.intent_detect_template = jinja_env.get_template('prompts/intent_detect.jinja2')
+
         with open('system_instruction_v2.txt', 'r', encoding='utf-8') as f:
             self.system_instruction = f.read()
 
@@ -406,15 +417,17 @@ class CopilotContext:
         self.messages = [
             {'role':'system', 'content': self.system_instruction},
         ]
-        self.local_folder = generate_random_folder_name()
+        self.local_folder = generate_random_folder_name()    
 
-    def format_request_dict(self, function_call=None):
+    def _format_request_dict(self, messages=[], functions=None, function_call=None):
         request_args_dict = {
-            "messages": self.messages,
-            "functions": self.my_custom_functions,
+            "messages": messages,
             "stream": False,
             "temperature": 0
         }
+
+        if functions:
+            request_args_dict['functions'] = functions
 
         if function_call:
             request_args_dict['function_call'] = function_call
@@ -424,11 +437,22 @@ class CopilotContext:
         else:
             request_args_dict['model'] = self.openai_model
 
-        return request_args_dict         
+        return request_args_dict 
+
+    def _intent_user_input(self, user_input):
+        intent_detect_prompt = self.intent_detect_template.render(user_input=user_input)
+        chat_message = [
+            {'role':'user', 'content': intent_detect_prompt},
+        ]
+        request_args_dict = self._format_request_dict(messages=chat_message)
+        response = openai.ChatCompletion.create(**request_args_dict)
+        message = getattr(response.choices[0].message, "content", "")
+        return message
 
     def ask_gpt(self, content, print_info_func):
-        self.messages.append({'role':'user', 'content':content})
-        request_args_dict = self.format_request_dict('auto')
+        user_intent = self._intent_user_input(content)
+        self.messages.append({'role':'user', 'content':user_intent})
+        request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
         
         response = openai.ChatCompletion.create(**request_args_dict)
         self.parse_gpt_response(response, print_info_func)
@@ -463,7 +487,7 @@ class CopilotContext:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
-                    request_args_dict = self.format_request_dict('auto')
+                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_local_folder':
@@ -473,7 +497,7 @@ class CopilotContext:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
-                    request_args_dict = self.format_request_dict('auto')
+                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_sample_inputs':
@@ -492,7 +516,7 @@ class CopilotContext:
                 else:
                     self.local_folder = os.path.dirname(function_arguments['path'])
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
-                    request_args_dict = self.format_request_dict('auto')
+                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_flow_from_local_folder':
@@ -503,7 +527,7 @@ class CopilotContext:
                     print_info_func('you ask me to read flow from a folder, but the folder does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
-                    request_args_dict = self.format_request_dict('auto')
+                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'python':
@@ -513,7 +537,7 @@ class CopilotContext:
                 for key, value in execution_result.items():
                     str_result[key] = str(value)
                 self.messages.append({"role": "function", "name": function_name, "content":json.dumps(str_result)})
-                request_args_dict = self.format_request_dict('auto')
+                request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
                 new_response = openai.ChatCompletion.create(**request_args_dict)
                 self.parse_gpt_response(new_response, print_info_func)
             else:
