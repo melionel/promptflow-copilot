@@ -22,7 +22,7 @@ nodes:
     llm_tool_prompt: ${llm_tool_prompt.output}
     python_tool_prompt: ${python_tool_prompt.output}
     instruction_prompt: ${instruction_prompt.output}
-    user_prompt: ${inputs.text}
+    user_prompt: ${rewrite_user_input.output}
     model_or_deployment_name: gpt-35-turbo-16k-0613
 - name: functions
   type: python
@@ -60,3 +60,17 @@ nodes:
     type: code
     path: instruction_prompt.jinja2
   inputs: {}
+- name: rewrite_user_input
+  type: llm
+  source:
+    type: code
+    path: rewrite_user_input.jinja2
+  inputs:
+    deployment_name: gpt-35-turbo
+    temperature: 0
+    max_tokens: 3200
+    user_input: ${inputs.text}
+  provider: AzureOpenAI
+  connection: aoai-eus
+  api: chat
+  module: promptflow.tools.aoai
