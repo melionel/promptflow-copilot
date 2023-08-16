@@ -7,24 +7,9 @@ from CopilotContext import CopilotContext
 import traceback
 from constants import USER_TAG, COPILOT_TAG, IMAGE_TAG, USER_TEXT_COLOR, LABEL_COLOR, PILOT_TEXT_COLOR
 from constants import entry_default_message, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
-import logging
+from logging_util import get_logger
 
-log_file_name = "pfcopilot_err.log"
 current_tag = USER_TAG
-
-def setup_logger(log_file):
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.ERROR)
-    
-    logger.addHandler(file_handler)
-
-    return logger
 
 def handle_exception(exc_traceback):
     messagebox.showerror("Error occurred. Please fix the error and try again.", exc_traceback)
@@ -152,7 +137,7 @@ else:
 
 
 # setup logging
-logger = setup_logger(log_file_name)
+logger = get_logger()
 
 # Run the main event loop
 app.mainloop()

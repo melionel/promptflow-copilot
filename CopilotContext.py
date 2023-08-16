@@ -2,12 +2,16 @@ import os
 import json
 import openai
 import re
+import yaml
 from pathlib import Path
 from json import JSONDecodeError
 from datetime import datetime
 from dotenv import load_dotenv
 
 from jinja2 import Environment, FileSystemLoader
+from logging_util import get_logger
+
+logger = get_logger()
 
 def generate_random_folder_name():
     # Get the current timestamp as a string
@@ -28,6 +32,15 @@ def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, 
     with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
         f.write(flow_yaml)
 
+    parsed_flow_yaml = yaml.safe_load(flow_yaml)
+    python_nodes = []
+    llm_nodes = []
+    for node in parsed_flow_yaml['nodes']:
+        if node['type'] == 'python':
+            python_nodes.append(node['name'])
+        elif node['type'] == 'llm':
+            llm_nodes.append(node['name'])
+
     print_info_func('Dumping flow.explaination.txt')
     with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
         f.write(explaination)
@@ -36,15 +49,21 @@ def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, 
     for func in python_functions:
         fo =  func if type(func) == dict else json.loads(func)
         for k,v in fo.items():
-            with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
-                f.write(v)
+            if k in python_nodes:
+                with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
+                    f.write(v)
+            else:
+                print(f'Function {k} is not used in the flow, skip dumping it')
 
     print_info_func('Dumping prompts')
     for prompt in prompts:
         po = prompt if type(prompt) == dict else json.loads(prompt)
         for k,v in po.items():
-            with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
-                f.write(v)
+            if k in llm_nodes:
+                with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
+                    f.write(v)
+            else:
+                print(f'Prompt {k} is not used in the flow, skip dumping it')
 
     print_info_func('Dumping requirements.txt')
     with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
@@ -219,6 +238,7 @@ def extract_functions_arguments(function_call):
         pattern = r'\\\n'
         updated_function_call = re.sub(pattern, r'\\n', str(function_call))
         if updated_function_call == function_call:
+            logger.error(f'Failed to extract function arguments from {function_call}')
             raise ex
         return extract_functions_arguments(updated_function_call)
         
