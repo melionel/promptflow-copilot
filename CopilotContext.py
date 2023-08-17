@@ -47,6 +47,7 @@ class CopilotContext:
         jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
         self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
         self.rewrite_user_input_template = jinja_env.get_template('prompts/rewrite_user_input.jinja2')
+        self.refine_python_code_template = jinja_env.get_template('prompts/refine_python_code.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = [
@@ -81,10 +82,6 @@ class CopilotContext:
                             'items': {
                                 'type': 'string'
                             }
-                        },
-                        'requirements': {
-                            'type': 'string',
-                            'description': 'pip requirements'
                         },
                         'flow_inputs_schema': {
                             'type': 'array',
@@ -246,7 +243,7 @@ class CopilotContext:
 
         return request_args_dict 
 
-    def _rewtire_user_input(self, user_input):
+    def _rewrite_user_input(self, user_input):
         rewrite_user_input_instruction = self.rewrite_user_input_template.render()
         chat_message = [
             {'role':'system', 'content': rewrite_user_input_instruction},
@@ -256,9 +253,21 @@ class CopilotContext:
         response = openai.ChatCompletion.create(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "")
         return message
+    
+    def _refine_python_code(self, python_code):
+        refine_python_code_instruction = self.refine_python_code_template.render()
+        chat_message = [
+            {'role':'system', 'content': refine_python_code_instruction},
+            {'role':'user', 'content': python_code}
+        ]
+
+        request_args_dict = self._format_request_dict(messages=chat_message)
+        response = openai.ChatCompletion.create(**request_args_dict)
+        message = getattr(response.choices[0].message, "content", "")
+        return message
 
     def ask_gpt(self, content, print_info_func):
-        rewritten_user_intent = self._rewtire_user_input(content)
+        rewritten_user_intent = self._rewrite_user_input(content)
         print(f'User intent: {rewritten_user_intent}')
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
         request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
@@ -353,7 +362,7 @@ class CopilotContext:
                 raise Exception(f'Invalid function name:{function_name}')
 
     # region functions
-    def dump_flow(self, flow_yaml, explaination, python_functions, prompts, requirements, target_folder, print_info_func, flow_inputs_schema=None, flow_outputs_schema=None):
+    def dump_flow(self, flow_yaml, explaination, python_functions, prompts, target_folder, print_info_func, flow_inputs_schema=None, flow_outputs_schema=None):
         '''
         dump flow yaml and explaination and python functions into different files
         '''
@@ -384,6 +393,9 @@ class CopilotContext:
             for k,v in fo.items():
                 if k in python_nodes:
                     with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
+                        refined_codes = self._refine_python_code(v)
+                        f.write(refined_codes)
+                    with open(f'{target_folder}\\{k}_original.py', 'w', encoding="utf-8") as f:
                         f.write(v)
                 else:
                     print(f'Function {k} is not used in the flow, skip dumping it')
@@ -398,9 +410,9 @@ class CopilotContext:
                 else:
                     print(f'Prompt {k} is not used in the flow, skip dumping it')
 
-        print_info_func('Dumping requirements.txt')
-        with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
-            f.write(requirements)
+        # print_info_func('Dumping requirements.txt')
+        # with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
+        #     f.write(requirements)
 
     def read_local_file(self, path, print_info_func):
         if os.path.isdir(path):
