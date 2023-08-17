@@ -109,7 +109,7 @@ nodes:
     text: ${fetch_text_content_from_url.output}
   provider: AzureOpenAI
   connection: ''
-  api: completion
+  api: chat
 - name: prepare_examples
   type: python
   source:
@@ -130,7 +130,7 @@ nodes:
     examples: ${prepare_examples.output}
   provider: AzureOpenAI
   connection: ''
-  api: completion
+  api: chat
 - name: convert_to_dict
   type: python
   source:
@@ -151,14 +151,15 @@ When create flow, folow below rules:
 9. Do not forget to add 'from promptflow import tool' in each python tool's impemenation
 10. Do not forget to declar the parametr's type for each python tool's implementation function
 11. For each node that use python tool, you should also give the impemenation of the python function in json string format.
-12. For each node that uses llm tool, use natual language to tell llm what do you want clearly and in detail and treat it as the llm node's prompt. you can add extra input to receive pre-order nodes's output and use it in the prompt for example, you want to use the output of node_1, you can define an extra input named 'upper_text', and use {{upper_text}} to reference in the prompt.
-13. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example: {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
-14. Format all python functions in a list of dictionary, use the function's name as the key and the json string as the value.
-15. Format all llm node's prompts in a list of dictionary, use the node's name as the key and the prompt as the value.
-16. list all extra python packages you used in the python functions
-17. list flow's inputs' and outputs' schema
+12. For each node that uses llm tool, use natual language to tell llm what do you want clearly and in detail and treat it as the llm node's prompt. the prompt should follow jinja2 template syntax.
+13. you can reference the llm node's input with valid jinja syntax. for example, if the llm node has input named input_1, you can reference it with {{input_1}} in the prompt like this: "prompt": "system:\n you are an intelligent AI assistant.\n user:\nCovert the input text to english. Input text: {{input_1}}\n Output:"
+14. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example: {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
+15. Format all python functions in a list of dictionary, use the function's name as the key and the json string as the value.
+16. Format all llm node's prompts in a list of dictionary, use the node's name as the key and the prompt as the value.
+17. list all extra python packages you used in the python functions
+18. list flow's inputs' and outputs' schema
 
-Please format your answer into seven parts: flow_yaml, explaination, python_functions, prompts, flow_inputs_schema, flow_outputs_schema
+Please format your answer into six parts: flow_yaml, explaination, python_functions, prompts, flow_inputs_schema, flow_outputs_schema
 
 Pay attention:
 python_functions should be a list of dictionary, use the function's name as the key and the json string as the value.
@@ -168,7 +169,7 @@ flow_outputs_schema should be a list of dictionary, use the output's name as the
 
 for example:
 flow_yaml:
-inputs:\n  url:\n    type: string\n    default: https://www.microsoft.com\noutputs:\n  category:\n    type: string\n    reference: ${convert_to_dict.output.category}\n  evidence:\n    type: string\n    reference: ${convert_to_dict.output.evidence}\nnodes:\n- name: fetch_text_content_from_url\n  type: python\n  source:\n    type: code\n    path: fetch_text_content_from_url.py\n  inputs:\n    url: ${inputs.url}\n- name: summarize_text_content\n  type: llm\n  source:\n    type: code\n    path: summarize_text_content.jinja2\n  inputs:\n    deployment_name: \'\'\n    max_tokens: \'128\'\n    temperature: \'0.2\'\n    text: ${fetch_text_content_from_url.output}\n  provider: AzureOpenAI\n  connection: \'\'\n  api: completion\n- name: prepare_examples\n  type: python\n  source:\n    type: code\n    path: prepare_examples.py\n  inputs: {}\n- name: classify_with_llm\n  type: llm\n  source:\n    type: code\n    path: classify_with_llm.jinja2\n  inputs:\n    deployment_name: \'\'\n    max_tokens: \'128\'\n    temperature: \'0.2\'\n    url: ${inputs.url}\n    text_content: ${summarize_text_content.output}\n    examples: ${prepare_examples.output}\n  provider: AzureOpenAI\n  connection: \'\'\n  api: completion\n- name: convert_to_dict\n  type: python\n  source:\n    type: code\n    path: convert_to_dict.py\n  inputs:\n    input_str: ${classify_with_llm.output}
+inputs:\n  url:\n    type: string\n    default: https://www.microsoft.com\noutputs:\n  category:\n    type: string\n    reference: ${convert_to_dict.output.category}\n  evidence:\n    type: string\n    reference: ${convert_to_dict.output.evidence}\nnodes:\n- name: fetch_text_content_from_url\n  type: python\n  source:\n    type: code\n    path: fetch_text_content_from_url.py\n  inputs:\n    url: ${inputs.url}\n- name: summarize_text_content\n  type: llm\n  source:\n    type: code\n    path: summarize_text_content.jinja2\n  inputs:\n    deployment_name: \'\'\n    max_tokens: \'128\'\n    temperature: \'0.2\'\n    text: ${fetch_text_content_from_url.output}\n  provider: AzureOpenAI\n  connection: \'\'\n  api: chat\n- name: prepare_examples\n  type: python\n  source:\n    type: code\n    path: prepare_examples.py\n  inputs: {}\n- name: classify_with_llm\n  type: llm\n  source:\n    type: code\n    path: classify_with_llm.jinja2\n  inputs:\n    deployment_name: \'\'\n    max_tokens: \'128\'\n    temperature: \'0.2\'\n    url: ${inputs.url}\n    text_content: ${summarize_text_content.output}\n    examples: ${prepare_examples.output}\n  provider: AzureOpenAI\n  connection: \'\'\n  api: chat\n- name: convert_to_dict\n  type: python\n  source:\n    type: code\n    path: convert_to_dict.py\n  inputs:\n    input_str: ${classify_with_llm.output}
 
 explaination:
 given a web url, we use python tool to implement a function to fetch the content for the website, then we use a llm tool to generate summary of the fetched content. Also we use a python tool to prepare some example on how to classify content to different categories.
@@ -183,8 +184,8 @@ python_functions:
 
 prompts:
 [
-  {"summarize_text_content": "Please summarize the following text in one paragraph. 100 words.\nDo not add any information that is not in the text.\n\nText: {{text}}\nSummary: "},
-  {"classify_with_llm": "Your task is to classify a given url into one of the following types:\nMovie, App, Academic, Channel, Profile, PDF or None based on the text content information.\nThe classification will be based on the url, the webpage text content summary, or both.\n\nHere are a few examples:\n{% for ex in examples %}\nURL: {{ex.url}}\nText content: {{ex.text_content}}\nOUTPUT:\n{\"category\": \"{{ex.category}}\", \"evidence\": \"{{ex.evidence}}\"}\n\n{% endfor %}\n\nFor a given URL : {{url}}, and text content: {{text_content}}.\nClassify above url to complete the category and indicate evidence.\nOUTPUT:"}
+  {"summarize_text_content": "system:\n You are an intelligent AI assistant.\n user:\nPlease summarize the following text in one paragraph. 100 words.\nDo not add any information that is not in the text.\n\nText: {{text}}\nSummary: "},
+  {"classify_with_llm": "system:\nYour task is to classify a given url into one of the following types:\nMovie, App, Academic, Channel, Profile, PDF or None based on the text content information.\nThe classification will be based on the url, the webpage text content summary, or both. \n user:\nFor a given URL : {{url}}, and text content: {{text_content}}.\nClassify above url to complete the category and indicate evidence.\nOUTPUT:"}
 ]
 
 flow_inputs_schema:
