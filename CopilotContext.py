@@ -13,224 +13,6 @@ from logging_util import get_logger
 
 logger = get_logger()
 
-def generate_random_folder_name():
-    # Get the current timestamp as a string
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    folder_name = f"generated_flow_{timestamp}"
-
-    return folder_name
-
-def dump_flow(flow_yaml, explaination, python_functions, prompts, requirements, target_folder, print_info_func, flow_inputs_schema=None, flow_outputs_schema=None):
-    '''
-    dump flow yaml and explaination and python functions into different files
-    '''
-    if not os.path.exists(target_folder):
-        os.mkdir(target_folder)
-        print_info_func(f'Create flow folder:{target_folder}')
-
-    print_info_func('Dumping flow.dag.yaml')
-    with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
-        f.write(flow_yaml)
-
-    parsed_flow_yaml = yaml.safe_load(flow_yaml)
-    python_nodes = []
-    llm_nodes = []
-    for node in parsed_flow_yaml['nodes']:
-        if node['type'] == 'python':
-            python_nodes.append(node['name'])
-        elif node['type'] == 'llm':
-            llm_nodes.append(node['name'])
-
-    print_info_func('Dumping flow.explaination.txt')
-    with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
-        f.write(explaination)
-
-    print_info_func('Dumping python functions')
-    for func in python_functions:
-        fo =  func if type(func) == dict else json.loads(func)
-        for k,v in fo.items():
-            if k in python_nodes:
-                with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
-                    f.write(v)
-            else:
-                print(f'Function {k} is not used in the flow, skip dumping it')
-
-    print_info_func('Dumping prompts')
-    for prompt in prompts:
-        po = prompt if type(prompt) == dict else json.loads(prompt)
-        for k,v in po.items():
-            if k in llm_nodes:
-                with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
-                    f.write(v)
-            else:
-                print(f'Prompt {k} is not used in the flow, skip dumping it')
-
-    print_info_func('Dumping requirements.txt')
-    with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
-        f.write(requirements)
-
-def read_local_file(path, print_info_func):
-    if os.path.isdir(path):
-        return read_local_folder(path, print_info_func)
-    
-    if not os.path.exists(path):
-        print_info_func(f'{path} does not exists')
-        return
-    else:
-        print_info_func(f'read content from file:{path}')
-        with open(path, 'r', encoding="utf-8") as f:
-            return f.read()
-        
-def read_local_folder(path, print_info_func, included_file_types=['.ipynb', '.py']):
-    if os.path.isfile(path):
-        return read_local_file(path, print_info_func)
-    
-    if not os.path.exists(path):
-        print_info_func(f'{path} does not exists')
-        return
-    else:
-        print_info_func(f'read content from folder:{path}')
-        file_contents_dict = {}
-
-        for root, _, files in os.walk(path):
-            for file_name in files:
-                file_ext = Path(file_name).suffix
-                if not file_ext in included_file_types:
-                    continue
-                subfolder_name = os.path.relpath(root, start=path)
-                if subfolder_name == '.':
-                    subfolder_name = ''  # Use an empty string for files in the root folder
-                else:
-                    subfolder_name += '/'  # Add a slash to separate subfolder name and file name
-                file_path = os.path.join(root, file_name)
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    file_content = file.read()
-                    key = subfolder_name + file_name
-                    file_contents_dict[key] = file_content
-        return json.dumps(file_contents_dict)
-
-def read_flow_from_local_folder(path, print_info_func):
-    if os.path.isfile(path):
-        return read_local_file(path, print_info_func)
-    print_info_func(f'read existing flow from folder:{path}')
-    return read_local_folder(path, print_info_func, included_file_types=['.yaml'])
-
-def read_flow_from_local_file(path, print_info_func):
-    if os.path.isdir(path):
-        return read_local_folder(path, print_info_func)
-    print_info_func(f'read existing flow from file:{path}')
-    return read_local_file(path, print_info_func)
-
-def dump_sample_inputs(sample_inputs, target_folder, print_info_func):
-    if not os.path.exists(target_folder):
-        print_info_func(f'Before generate the sample inputs, please generate the flow first')
-        return
-    
-    if sample_inputs is None:
-        print_info_func('Failed to generate inputs for your flow, please try again')
-    else:
-        with open(f'{target_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
-            for sample_input in sample_inputs:
-                if sample_input is None:
-                    continue
-                else:
-                    sample_input = sample_input if type(sample_input) == str else json.dumps(sample_input)
-                f.write(sample_input + '\n')
-        print_info_func(f'Generated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
-
-def dump_evaluation_flow(sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func):
-    if not os.path.exists(flow_folder):
-        print_info_func(f'Before generate the evaluation flow, please generate the flow first')
-        return
-    
-    if not os.path.exists(eval_flow_folder):
-        os.mkdir(eval_flow_folder)
-        print_info_func(f'Create flow folder:{eval_flow_folder}')
-
-    if sample_inputs is None:
-        print_info_func('No sample inputs generated, you may need to generate the sample inputs manually')
-
-    print_info_func('Dumping evalutaion flow...')
-    evaluation_flow_template_folder = '.\evaluation_template'
-    file_list = os.listdir(evaluation_flow_template_folder)
-    import shutil
-    for file_name in file_list:
-        source_file_path = os.path.join(evaluation_flow_template_folder, file_name)
-        destination_file_path = os.path.join(eval_flow_folder, file_name)
-        shutil.copy(source_file_path, destination_file_path)
-
-    # currently only support one output
-    flow_outputs_schema = flow_outputs_schema[0]
-    first_output_column = ''
-
-    with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
-        for sample_input in sample_inputs:
-            if sample_input is None:
-                continue
-            else:
-                sample_input = json.loads(sample_input)
-                flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else json.loads(flow_outputs_schema)
-                for k,v in flow_outputs_schema.items():
-                    sample_input[k] = 'expected_output'
-                first_output_column = next(iter(flow_outputs_schema)) if flow_outputs_schema else ''
-            f.write(json.dumps(sample_input) + '\n')
-
-    goundtruth_name = f'data.{first_output_column}'
-    prediction_name = f'run.outputs.{first_output_column}'
-
-    sdk_eval_sample_code = f"""
-from promptflow import PFClient
-import json
-
-def main():
-    # Set flow path and run input data
-    flow = "{flow_folder}" # set the flow directory
-    data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl" # set the data file
-
-    pf = PFClient()
-
-    # create a run
-    base_run = pf.run(
-        flow=flow,
-        data=data,
-        stream=True
-    )
-
-    # set eval flow path
-    eval_flow = "{eval_flow_folder}"
-    data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl"
-
-    # run the flow with exisiting run
-    eval_run = pf.run(
-        flow=eval_flow,
-        data=data,
-        run=base_run,
-        column_mapping={{"groundtruth": "${{{goundtruth_name}}}","prediction": "${{{prediction_name}}}"}},  # map the url field from the data to the url input of the flow
-    )
-
-    # stream the run until it's finished
-    pf.stream(eval_run)
-
-    # get the inputs/outputs details of a finished run.
-    details = pf.get_details(eval_run)
-    details.head(10)
-
-    # view the metrics of the eval run
-    metrics = pf.get_metrics(eval_run)
-    print(json.dumps(metrics, indent=4))
-
-    # visualize both the base run and the eval run
-    pf.visualize([base_run, eval_run])
-
-if __name__ == "__main__":
-    main()
-
-"""
-    with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
-        f.write(sdk_eval_sample_code)
-
-    print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
-
 def extract_functions_arguments(function_call):
     try:
         return json.loads(function_call)
@@ -241,7 +23,13 @@ def extract_functions_arguments(function_call):
             logger.error(f'Failed to extract function arguments from {function_call}')
             raise ex
         return extract_functions_arguments(updated_function_call)
-        
+
+def generate_random_folder_name():
+    # Get the current timestamp as a string
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    folder_name = f"generated_flow_{timestamp}"
+
+    return folder_name
 
 class CopilotContext:
     def __init__(self) -> None:
@@ -257,11 +45,10 @@ class CopilotContext:
         self.local_folder = generate_random_folder_name()
 
         jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
-        self.intent_detect_template = jinja_env.get_template('prompts/intent_detect.jinja2')
+        self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
+        self.rewrite_user_input_template = jinja_env.get_template('prompts/rewrite_user_input.jinja2')
 
-        with open('system_instruction_v2.txt', 'r', encoding='utf-8') as f:
-            self.system_instruction = f.read()
-
+        self.system_instruction = self.copilot_instruction_template.render()
         self.messages = [
             {'role':'system', 'content': self.system_instruction},
         ]
@@ -459,10 +246,11 @@ class CopilotContext:
 
         return request_args_dict 
 
-    def _intent_user_input(self, user_input):
-        intent_detect_prompt = self.intent_detect_template.render(user_input=user_input)
+    def _rewtire_user_input(self, user_input):
+        rewrite_user_input_instruction = self.rewrite_user_input_template.render()
         chat_message = [
-            {'role':'user', 'content': intent_detect_prompt},
+            {'role':'system', 'content': rewrite_user_input_instruction},
+            {'role':'user', 'content': user_input}
         ]
         request_args_dict = self._format_request_dict(messages=chat_message)
         response = openai.ChatCompletion.create(**request_args_dict)
@@ -470,9 +258,9 @@ class CopilotContext:
         return message
 
     def ask_gpt(self, content, print_info_func):
-        user_intent = self._intent_user_input(content)
-        print(f'User intent: {user_intent}')
-        self.messages.append({'role':'user', 'content':user_intent})
+        rewritten_user_intent = self._rewtire_user_input(content)
+        print(f'User intent: {rewritten_user_intent}')
+        self.messages.append({'role':'user', 'content':rewritten_user_intent})
         request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
         
         response = openai.ChatCompletion.create(**request_args_dict)
@@ -499,11 +287,11 @@ class CopilotContext:
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
                 function_arguments = extract_functions_arguments(function_call)
-                dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                self.dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ''})
             elif function_name == 'read_local_file':
                 function_arguments = extract_functions_arguments(function_call)
-                file_content = read_local_file(**function_arguments, print_info_func=print_info_func)
+                file_content = self.read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
                 else:
@@ -513,7 +301,7 @@ class CopilotContext:
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_local_folder':
                 function_arguments = extract_functions_arguments(function_call)
-                files_content = read_local_folder(**function_arguments, print_info_func=print_info_func)
+                files_content = self.read_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
                 else:
@@ -523,15 +311,15 @@ class CopilotContext:
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_sample_inputs':
                 function_arguments = extract_functions_arguments(function_call)
-                dump_sample_inputs(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                self.dump_sample_inputs(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'dump_evaluation_flow':
                 function_arguments = extract_functions_arguments(function_call)
-                dump_evaluation_flow(**function_arguments, flow_folder=self.local_folder, eval_flow_folder=self.local_folder + '\\evaluation', print_info_func=print_info_func)
+                self.dump_evaluation_flow(**function_arguments, flow_folder=self.local_folder, eval_flow_folder=self.local_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'read_flow_from_local_file':
                 function_arguments = extract_functions_arguments(function_call)
-                file_content = read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
+                file_content = self.read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read flow from a file, but the file does not exists')
                 else:
@@ -543,7 +331,7 @@ class CopilotContext:
             elif function_name == 'read_flow_from_local_folder':
                 function_arguments = extract_functions_arguments(function_call)
                 self.local_folder = function_arguments['path']
-                files_content = read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
+                files_content = self.read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read flow from a folder, but the folder does not exists')
                 else:
@@ -563,3 +351,217 @@ class CopilotContext:
                 self.parse_gpt_response(new_response, print_info_func)
             else:
                 raise Exception(f'Invalid function name:{function_name}')
+
+    # region functions
+    def dump_flow(self, flow_yaml, explaination, python_functions, prompts, requirements, target_folder, print_info_func, flow_inputs_schema=None, flow_outputs_schema=None):
+        '''
+        dump flow yaml and explaination and python functions into different files
+        '''
+        if not os.path.exists(target_folder):
+            os.mkdir(target_folder)
+            print_info_func(f'Create flow folder:{target_folder}')
+
+        print_info_func('Dumping flow.dag.yaml')
+        with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
+            f.write(flow_yaml)
+
+        parsed_flow_yaml = yaml.safe_load(flow_yaml)
+        python_nodes = []
+        llm_nodes = []
+        for node in parsed_flow_yaml['nodes']:
+            if node['type'] == 'python':
+                python_nodes.append(node['name'])
+            elif node['type'] == 'llm':
+                llm_nodes.append(node['name'])
+
+        print_info_func('Dumping flow.explaination.txt')
+        with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
+            f.write(explaination)
+
+        print_info_func('Dumping python functions')
+        for func in python_functions:
+            fo =  func if type(func) == dict else json.loads(func)
+            for k,v in fo.items():
+                if k in python_nodes:
+                    with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
+                        f.write(v)
+                else:
+                    print(f'Function {k} is not used in the flow, skip dumping it')
+
+        print_info_func('Dumping prompts')
+        for prompt in prompts:
+            po = prompt if type(prompt) == dict else json.loads(prompt)
+            for k,v in po.items():
+                if k in llm_nodes:
+                    with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
+                        f.write(v)
+                else:
+                    print(f'Prompt {k} is not used in the flow, skip dumping it')
+
+        print_info_func('Dumping requirements.txt')
+        with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
+            f.write(requirements)
+
+    def read_local_file(self, path, print_info_func):
+        if os.path.isdir(path):
+            return self.read_local_folder(path, print_info_func)
+
+        if not os.path.exists(path):
+            print_info_func(f'{path} does not exists')
+            return
+        else:
+            print_info_func(f'read content from file:{path}')
+            with open(path, 'r', encoding="utf-8") as f:
+                return f.read()
+
+    def read_local_folder(self, path, print_info_func, included_file_types=['.ipynb', '.py']):
+        if os.path.isfile(path):
+            return self.read_local_file(path, print_info_func)
+
+        if not os.path.exists(path):
+            print_info_func(f'{path} does not exists')
+            return
+        else:
+            print_info_func(f'read content from folder:{path}')
+            file_contents_dict = {}
+
+            for root, _, files in os.walk(path):
+                for file_name in files:
+                    file_ext = Path(file_name).suffix
+                    if not file_ext in included_file_types:
+                        continue
+                    subfolder_name = os.path.relpath(root, start=path)
+                    if subfolder_name == '.':
+                        subfolder_name = ''  # Use an empty string for files in the root folder
+                    else:
+                        subfolder_name += '/'  # Add a slash to separate subfolder name and file name
+                    file_path = os.path.join(root, file_name)
+                    with open(file_path, 'r', encoding='utf-8') as file:
+                        file_content = file.read()
+                        key = subfolder_name + file_name
+                        file_contents_dict[key] = file_content
+            return json.dumps(file_contents_dict)
+
+    def read_flow_from_local_folder(self, path, print_info_func):
+        if os.path.isfile(path):
+            return self.read_local_file(path, print_info_func)
+        print_info_func(f'read existing flow from folder:{path}')
+        return self.read_local_folder(path, print_info_func, included_file_types=['.yaml'])
+
+    def read_flow_from_local_file(self, path, print_info_func):
+        if os.path.isdir(path):
+            return self.read_local_folder(path, print_info_func)
+        print_info_func(f'read existing flow from file:{path}')
+        return self.read_local_file(path, print_info_func)
+
+    def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func):
+        if not os.path.exists(target_folder):
+            print_info_func(f'Before generate the sample inputs, please generate the flow first')
+            return
+
+        if sample_inputs is None:
+            print_info_func('Failed to generate inputs for your flow, please try again')
+        else:
+            with open(f'{target_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+                for sample_input in sample_inputs:
+                    if sample_input is None:
+                        continue
+                    else:
+                        sample_input = sample_input if type(sample_input) == str else json.dumps(sample_input)
+                    f.write(sample_input + '\n')
+            print_info_func(f'Generated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
+
+    def dump_evaluation_flow(self, sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func):
+        if not os.path.exists(flow_folder):
+            print_info_func(f'Before generate the evaluation flow, please generate the flow first')
+            return
+
+        if not os.path.exists(eval_flow_folder):
+            os.mkdir(eval_flow_folder)
+            print_info_func(f'Create flow folder:{eval_flow_folder}')
+
+        if sample_inputs is None:
+            print_info_func('No sample inputs generated, you may need to generate the sample inputs manually')
+
+        print_info_func('Dumping evalutaion flow...')
+        evaluation_flow_template_folder = '.\evaluation_template'
+        file_list = os.listdir(evaluation_flow_template_folder)
+        import shutil
+        for file_name in file_list:
+            source_file_path = os.path.join(evaluation_flow_template_folder, file_name)
+            destination_file_path = os.path.join(eval_flow_folder, file_name)
+            shutil.copy(source_file_path, destination_file_path)
+
+        # currently only support one output
+        flow_outputs_schema = flow_outputs_schema[0]
+        first_output_column = ''
+
+        with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+            for sample_input in sample_inputs:
+                if sample_input is None:
+                    continue
+                else:
+                    sample_input = json.loads(sample_input)
+                    flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else json.loads(flow_outputs_schema)
+                    for k,v in flow_outputs_schema.items():
+                        sample_input[k] = 'expected_output'
+                    first_output_column = next(iter(flow_outputs_schema)) if flow_outputs_schema else ''
+                f.write(json.dumps(sample_input) + '\n')
+
+        goundtruth_name = f'data.{first_output_column}'
+        prediction_name = f'run.outputs.{first_output_column}'
+
+        sdk_eval_sample_code = f"""
+    from promptflow import PFClient
+    import json
+
+    def main():
+        # Set flow path and run input data
+        flow = "{flow_folder}" # set the flow directory
+        data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl" # set the data file
+
+        pf = PFClient()
+
+        # create a run
+        base_run = pf.run(
+            flow=flow,
+            data=data,
+            stream=True
+        )
+
+        # set eval flow path
+        eval_flow = "{eval_flow_folder}"
+        data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl"
+
+        # run the flow with exisiting run
+        eval_run = pf.run(
+            flow=eval_flow,
+            data=data,
+            run=base_run,
+            column_mapping={{"groundtruth": "${{{goundtruth_name}}}","prediction": "${{{prediction_name}}}"}},  # map the url field from the data to the url input of the flow
+        )
+
+        # stream the run until it's finished
+        pf.stream(eval_run)
+
+        # get the inputs/outputs details of a finished run.
+        details = pf.get_details(eval_run)
+        details.head(10)
+
+        # view the metrics of the eval run
+        metrics = pf.get_metrics(eval_run)
+        print(json.dumps(metrics, indent=4))
+
+        # visualize both the base run and the eval run
+        pf.visualize([base_run, eval_run])
+
+    if __name__ == "__main__":
+        main()
+
+    """
+        with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
+            f.write(sdk_eval_sample_code)
+
+        print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
+
+    # endregion
