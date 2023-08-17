@@ -20,8 +20,8 @@ def handle_exception(exc_traceback):
 
 async def get_response_async():
     try:
-        user_input = input_box.get()
-        if user_input == entry_default_message:
+        user_input = input_box.get().strip()
+        if user_input == entry_default_message or user_input == '':
             return
         add_to_chat(user_input, USER_TAG)
         update_label.configure(text='Talking to GPT...')
