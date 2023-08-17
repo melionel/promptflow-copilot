@@ -56,6 +56,7 @@ class PfCopilot:
 
     def ask_ai(self):
         current_context = self.construct_prompt()
+        response = None
         if isinstance(self.connection, AzureOpenAIConnection):
             try:
                 response = aoai_chat(
@@ -64,9 +65,7 @@ class PfCopilot:
                     deployment_name=self.model_or_deployment_name,
                     functions=self.functions_def)
             except Exception as e:
-                if "The API deployment for this resource does not exist" in e.exc_msg:
-                    raise Exception(
-                        "Please fill in the deployment name of your Azure OpenAI resoure gpt-4 model.")
+                raise e
 
         elif isinstance(self.connection, OpenAIConnection):
             response = openai_chat(

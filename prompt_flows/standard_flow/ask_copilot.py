@@ -49,4 +49,4 @@ def ask_copilot(
         'function_args': function_args
     }
 
-    return result
+    return result["function_name"]
