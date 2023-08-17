@@ -3,6 +3,7 @@ import json
 import openai
 import re
 import yaml
+import asyncio
 from pathlib import Path
 from json import JSONDecodeError
 from datetime import datetime
@@ -273,6 +274,15 @@ class CopilotContext:
         request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
         
         response = openai.ChatCompletion.create(**request_args_dict)
+        self.parse_gpt_response(response, print_info_func)
+
+    async def ask_gpt_async(self, content, print_info_func):
+        rewritten_user_intent = self._rewrite_user_input(content)
+        print(f'User intent: {rewritten_user_intent}')
+        self.messages.append({'role':'user', 'content':rewritten_user_intent})
+        request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
+        
+        response = await openai.ChatCompletion.acreate(**request_args_dict)
         self.parse_gpt_response(response, print_info_func)
 
     def parse_gpt_response(self, response, print_info_func):

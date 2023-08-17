@@ -4,3 +4,4 @@ customtkinter
 pillow
 termcolor
 pyyaml
+async-tkinter-loop

@@ -1,6 +1,6 @@
 from tkinter import messagebox
 import tkinter as tk
-
+from async_tkinter_loop import async_handler, async_mainloop
 import customtkinter
 from PIL import Image, ImageTk
 from CopilotContext import CopilotContext
@@ -8,6 +8,7 @@ import traceback
 from constants import USER_TAG, COPILOT_TAG, IMAGE_TAG, USER_TEXT_COLOR, LABEL_COLOR, PILOT_TEXT_COLOR
 from constants import entry_default_message, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
 from logging_util import get_logger
+from tool_tip import ToolTip
 
 current_tag = USER_TAG
 
@@ -17,20 +18,26 @@ def handle_exception(exc_traceback):
     update_label.configure(text="Waiting for user's input...")
     logger.error(exc_traceback)
 
-def get_response():
+async def get_response_async():
     try:
         user_input = input_box.get()
         if user_input == entry_default_message:
             return
         add_to_chat(user_input, USER_TAG)
         update_label.configure(text='Talking to GPT...')
+        send_button.configure(state=tk.DISABLED)
+        reset_button.configure(state=tk.DISABLED)
         app.update()
-        copilot_context.ask_gpt(user_input, add_to_chat)
-        chat_box.yview_moveto(1.0)
-        update_label.configure(text="Waiting for user's input...")
+        await copilot_context.ask_gpt_async(user_input, add_to_chat)
     except Exception:
         trace_back = traceback.format_exc()
         handle_exception(trace_back)
+    finally:
+        chat_box.yview_moveto(1.0)
+        update_label.configure(text="Waiting for user's input...")
+        send_button.configure(state=tk.NORMAL)
+        reset_button.configure(state=tk.NORMAL)
+        app.update()
 
 def start_over():
     try:
@@ -61,8 +68,10 @@ def add_image_to_chat(tag=COPILOT_TAG):
     chat_box.image_create(tk.END, image=images_dict[tag], padx=10, pady=5)
     chat_box.insert(tk.END, f"{tag}\n", IMAGE_TAG)
 
-def ctrl_enter_pressed(event):
-    get_response()
+async def ctrl_enter_pressed(event):
+    button_state = send_button.cget('state')
+    if button_state == tk.NORMAL:
+        await get_response_async()
 
 def handle_selection(event):
     widget = event.widget
@@ -118,13 +127,16 @@ chat_box.tag_bind("Copilot", "<Button-1>", handle_selection)
 # create an entry box to accept user input
 input_box = customtkinter.CTkEntry(app, font=INPUT_FONT, placeholder_text=entry_default_message, corner_radius=5, height=5)
 input_box.grid(row=2, column=0, columnspan=8, sticky='nsew', padx=(5, 5), pady=(5, 5))
-input_box.bind("<Control-Return>", ctrl_enter_pressed)
-input_box.bind("<Return>", ctrl_enter_pressed)
+input_box.bind("<Control-Return>", command=async_handler(ctrl_enter_pressed))
+input_box.bind("<Return>", command=async_handler(ctrl_enter_pressed))
 
 reset_button = customtkinter.CTkButton(app, text="Start over", command=start_over)
 reset_button.grid(row=0, column=9, columnspan=1, sticky='nsew', padx=(0, 10), pady=(5, 5))
-send_button = customtkinter.CTkButton(app, text="Send", command=get_response, border_width=0, corner_radius=5)
+reset_button_tooltip = ToolTip(reset_button, normal_text="reset copilot context", disabled_text="please wait until the current request is completed")
+
+send_button = customtkinter.CTkButton(app, text="Send", command=async_handler(get_response_async), border_width=0, corner_radius=5)
 send_button.grid(row=2, column=9, columnspan=1, sticky='nsew', padx=(0, 10), pady=(5, 5))
+send_button_tooltip = ToolTip(send_button, normal_text="send user input", disabled_text="please wait until the current request is completed")
 
 # check environment
 env_ready, msg = copilot_context.check_env()
@@ -140,4 +152,4 @@ else:
 logger = get_logger()
 
 # Run the main event loop
-app.mainloop()
+async_mainloop(app)
