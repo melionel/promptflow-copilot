@@ -25,13 +25,6 @@ def extract_functions_arguments(function_call):
             raise ex
         return extract_functions_arguments(updated_function_call)
 
-def generate_random_folder_name():
-    # Get the current timestamp as a string
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    folder_name = f"generated_flow_{timestamp}"
-
-    return folder_name
-
 class CopilotContext:
     def __init__(self) -> None:
         load_dotenv('pfcopilot.env')
@@ -43,13 +36,14 @@ class CopilotContext:
         self.openai_key = os.environ.get("OPENAI_API_KEY")
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
-        self.local_folder = generate_random_folder_name()
+        self.flow_folder = None
 
         jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
         self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
         self.rewrite_user_input_template = jinja_env.get_template('prompts/rewrite_user_input.jinja2')
         self.refine_python_code_template = jinja_env.get_template('prompts/refine_python_code.jinja2')
         self.find_python_package_template = jinja_env.get_template('prompts/find_python_package.jinja2')
+        self.summarize_flow_name_template = jinja_env.get_template('prompts/summarize_flow_name.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = [
@@ -223,7 +217,7 @@ class CopilotContext:
         self.messages = [
             {'role':'system', 'content': self.system_instruction},
         ]
-        self.local_folder = generate_random_folder_name()    
+        self.flow_folder = None    
 
     def _format_request_dict(self, messages=[], functions=None, function_call=None):
         request_args_dict = {
@@ -283,6 +277,18 @@ class CopilotContext:
             if p != 'None':
                 packages.append(p)
         return packages
+    
+    async def _summarize_flow_name(self, flow_description):
+        summarize_flow_name_instruction = self.summarize_flow_name_template.render()
+        chat_message = [
+            {'role':'system', 'content': summarize_flow_name_instruction},
+            {'role':'user', 'content': flow_description}
+        ]
+
+        request_args_dict = self._format_request_dict(messages=chat_message)
+        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        message = getattr(response.choices[0].message, "content", "")
+        return message
 
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
@@ -313,7 +319,7 @@ class CopilotContext:
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
                 function_arguments = extract_functions_arguments(function_call)
-                await self.dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                await self.dump_flow(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ''})
             elif function_name == 'read_local_file':
                 function_arguments = extract_functions_arguments(function_call)
@@ -337,11 +343,11 @@ class CopilotContext:
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_sample_inputs':
                 function_arguments = extract_functions_arguments(function_call)
-                self.dump_sample_inputs(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'dump_evaluation_flow':
                 function_arguments = extract_functions_arguments(function_call)
-                self.dump_evaluation_flow(**function_arguments, flow_folder=self.local_folder, eval_flow_folder=self.local_folder + '\\evaluation', print_info_func=print_info_func)
+                self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'read_flow_from_local_file':
                 function_arguments = extract_functions_arguments(function_call)
@@ -349,14 +355,14 @@ class CopilotContext:
                 if not file_content:
                     print_info_func('you ask me to read flow from a file, but the file does not exists')
                 else:
-                    self.local_folder = os.path.dirname(function_arguments['path'])
+                    self.flow_folder = os.path.dirname(function_arguments['path'])
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
                     new_response = openai.ChatCompletion.create(**request_args_dict)
                     self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_flow_from_local_folder':
                 function_arguments = extract_functions_arguments(function_call)
-                self.local_folder = function_arguments['path']
+                self.flow_folder = function_arguments['path']
                 files_content = self.read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read flow from a folder, but the folder does not exists')
@@ -379,10 +385,17 @@ class CopilotContext:
                 raise Exception(f'Invalid function name:{function_name}')
 
     # region functions
-    async def dump_flow(self, target_folder, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None):
+    async def dump_flow(self, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None):
         '''
         dump flow yaml and explaination and python functions into different files
         '''
+        if not self.flow_folder:
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            flow_name = await self._summarize_flow_name(explaination)
+            self.flow_folder = f'flow_{flow_name}_{timestamp}'
+
+        target_folder = self.flow_folder
+
         if not os.path.exists(target_folder):
             os.mkdir(target_folder)
             print_info_func(f'Create flow folder:{target_folder}')
