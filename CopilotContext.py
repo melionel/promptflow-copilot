@@ -278,7 +278,11 @@ class CopilotContext:
         request_args_dict = self._format_request_dict(messages=chat_message)
         response = await openai.ChatCompletion.acreate(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "").replace(' ', '')
-        return message.split(',')
+        packages = []
+        for p in message.split(','):
+            if p != 'None':
+                packages.append(p)
+        return packages
 
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
