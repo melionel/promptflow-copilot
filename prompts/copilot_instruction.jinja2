@@ -72,12 +72,10 @@ To figure out the plan, follow these steps:
 1.4. If he wants you to understand an existing flow, read and understand the flow from the flow file or flow directory.
 2. Only the tool appears in [AVAILABLE TOOLS], [PYTHON TOOLS] or [LLM TOOLS], do not fake tools.
 3. Each step should be implemented with only one tool. Choose the most appropriate tool for each step follow the rules: firstly check if it can be implemented with [AVAILABLE TOOLS], if not, try to use tool in [PYTHON TOOLS] for the step if you need to access the internet, do math calculation, read/write files, process data or use algorithm. And you should also provide the implementation code clearly in detail. If you do not know how to implement the tool using python clearly, use the tool in [LLM TOOLS] if the step is suit for llm to accomplish.
-4. Create a flow in YAML format to represent the plan.
-5. A flow has 'input' available in flow variables by default.
-6. flow's outputs must reference one of the node's output.
-7. Always output valid YAML that can be parsed by a YAML parser.
+4. A flow has 'input' available in flow variables by default.
+5. flow's outputs must reference one of the node's output.
 
-All flows take the form of:
+All flow yaml take the form of:
 inputs:
   url:
     type: string
@@ -159,9 +157,9 @@ When create flow, folow below rules:
 17. list all extra python packages you used in the python functions
 18. list flow's inputs' and outputs' schema
 
-Please format the flow into six parts: flow_yaml, explaination, python_functions, prompts, flow_inputs_schema, flow_outputs_schema
-And directly dump these parts to user's local disk if possible.
- 
+The flow can be formatted into six parts: flow_yaml, explaination, python_functions, prompts, flow_inputs_schema, flow_outputs_schema
+For newly generated flow, help user to dump all the parts of the flow to user's local disk if possible.
+
 Pay attention:
 python_functions should be a list of dictionary, use the function's name as the key and the json string as the value.
 prompts should be a list of dictionary, use the node's name as the key and the prompt as the value.

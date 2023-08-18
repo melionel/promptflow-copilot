@@ -49,6 +49,7 @@ class CopilotContext:
         self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
         self.rewrite_user_input_template = jinja_env.get_template('prompts/rewrite_user_input.jinja2')
         self.refine_python_code_template = jinja_env.get_template('prompts/refine_python_code.jinja2')
+        self.find_python_package_template = jinja_env.get_template('prompts/find_python_package.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = [
@@ -58,7 +59,7 @@ class CopilotContext:
         self.my_custom_functions = [
             {
                 'name': 'dump_flow',
-                'description': 'dump flow yaml and explaination and python functions into different files',
+                'description': 'dump flow to local disk',
                 'parameters':{
                     'type': 'object',
                     'properties': {
@@ -99,7 +100,7 @@ class CopilotContext:
                             }
                         },
                     },
-                    'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts', 'requirements']
+                    'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts']
                 }
             },
             {
@@ -132,7 +133,7 @@ class CopilotContext:
             },
             {
                 'name': 'read_flow_from_local_file',
-                'description': 'read an existing flow from a local file',
+                'description': 'read existing flow from a local file',
                 'parameters': {
                     'type': 'object',
                     'properties': {
@@ -146,7 +147,7 @@ class CopilotContext:
             },
             {
                 'name': 'read_flow_from_local_folder',
-                'description': 'read an existing flow from local folder',
+                'description': 'read existing flow from local folder',
                 'parameters': {
                     'type': 'object',
                     'properties': {
@@ -266,6 +267,18 @@ class CopilotContext:
         response = openai.ChatCompletion.create(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "")
         return message
+    
+    def _find_dependent_python_packages(self, python_code):
+        find_dependent_python_packages_instruction = self.find_python_package_template.render()
+        chat_message = [
+            {'role':'system', 'content': find_dependent_python_packages_instruction},
+            {'role':'user', 'content': python_code}
+        ]
+
+        request_args_dict = self._format_request_dict(messages=chat_message)
+        response = openai.ChatCompletion.create(**request_args_dict)
+        message = getattr(response.choices[0].message, "content", "").replace(' ', '')
+        return message.split(',')
 
     def ask_gpt(self, content, print_info_func):
         rewritten_user_intent = self._rewrite_user_input(content)
@@ -372,7 +385,7 @@ class CopilotContext:
                 raise Exception(f'Invalid function name:{function_name}')
 
     # region functions
-    def dump_flow(self, flow_yaml, explaination, python_functions, prompts, target_folder, print_info_func, flow_inputs_schema=None, flow_outputs_schema=None):
+    def dump_flow(self, target_folder, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None):
         '''
         dump flow yaml and explaination and python functions into different files
         '''
@@ -397,32 +410,36 @@ class CopilotContext:
         with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
             f.write(explaination)
 
-        print_info_func('Dumping python functions')
-        for func in python_functions:
-            fo =  func if type(func) == dict else json.loads(func)
-            for k,v in fo.items():
-                if k in python_nodes:
-                    with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
-                        refined_codes = self._refine_python_code(v)
-                        f.write(refined_codes)
-                    with open(f'{target_folder}\\{k}_original.py', 'w', encoding="utf-8") as f:
-                        f.write(v)
-                else:
-                    print(f'Function {k} is not used in the flow, skip dumping it')
+        requirement_python_packages = set()
+        if python_functions:
+            print_info_func('Dumping python functions')
+            for func in python_functions:
+                fo =  func if type(func) == dict else json.loads(func)
+                for k,v in fo.items():
+                    if k in python_nodes:
+                        with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
+                            refined_codes = self._refine_python_code(v)
+                            f.write(refined_codes)
+                            python_packages = self._find_dependent_python_packages(refined_codes)
+                            requirement_python_packages.update(python_packages)
+                    else:
+                        print(f'Function {k} is not used in the flow, skip dumping it')
 
-        print_info_func('Dumping prompts')
-        for prompt in prompts:
-            po = prompt if type(prompt) == dict else json.loads(prompt)
-            for k,v in po.items():
-                if k in llm_nodes:
-                    with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
-                        f.write(v)
-                else:
-                    print(f'Prompt {k} is not used in the flow, skip dumping it')
+        if prompts:
+            print_info_func('Dumping prompts')
+            for prompt in prompts:
+                po = prompt if type(prompt) == dict else json.loads(prompt)
+                for k,v in po.items():
+                    if k in llm_nodes:
+                        with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
+                            f.write(v)
+                    else:
+                        print(f'Prompt {k} is not used in the flow, skip dumping it')
 
-        # print_info_func('Dumping requirements.txt')
-        # with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
-        #     f.write(requirements)
+        if requirement_python_packages:
+            print_info_func('Dumping requirements.txt')
+            with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
+                f.write('\n'.join(requirement_python_packages))
 
     def read_local_file(self, path, print_info_func):
         if os.path.isdir(path):
