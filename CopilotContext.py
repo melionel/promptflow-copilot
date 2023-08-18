@@ -37,6 +37,8 @@ class CopilotContext:
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
         self.flow_folder = None
+        self.flow_description = None
+        self.flow_yaml = None
 
         jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
         self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
@@ -44,11 +46,10 @@ class CopilotContext:
         self.refine_python_code_template = jinja_env.get_template('prompts/refine_python_code.jinja2')
         self.find_python_package_template = jinja_env.get_template('prompts/find_python_package.jinja2')
         self.summarize_flow_name_template = jinja_env.get_template('prompts/summarize_flow_name.jinja2')
+        self.understand_flow_template = jinja_env.get_template('prompts/understand_flow_instruction.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
-        self.messages = [
-            {'role':'system', 'content': self.system_instruction},
-        ]
+        self.messages = []
 
         self.my_custom_functions = [
             {
@@ -292,6 +293,13 @@ class CopilotContext:
 
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
+
+        if self.flow_folder:
+            system_message = self.understand_flow_template.render(flow_yaml=self.flow_yaml, flow_description=self.flow_description)
+            self.messages[0] = {'role':'system', 'content': system_message}
+        elif len(self.messages) == 0:
+            self.messages.append({'role':'system', 'content':self.system_instruction})
+
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
         request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
         
@@ -403,6 +411,7 @@ class CopilotContext:
         print_info_func('Dumping flow.dag.yaml')
         with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
             f.write(flow_yaml)
+            self.flow_yaml = flow_yaml
 
         parsed_flow_yaml = yaml.safe_load(flow_yaml)
         python_nodes = []
@@ -416,6 +425,7 @@ class CopilotContext:
         print_info_func('Dumping flow.explaination.txt')
         with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
             f.write(explaination)
+            self.flow_description = explaination
 
         requirement_python_packages = set()
         if python_functions:
@@ -547,7 +557,7 @@ class CopilotContext:
                 if sample_input is None:
                     continue
                 else:
-                    sample_input = json.loads(sample_input)
+                    sample_input = json.loads(sample_input) if type(sample_input) == str else sample_input
                     flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else json.loads(flow_outputs_schema)
                     for k,v in flow_outputs_schema.items():
                         sample_input[k] = 'expected_output'
