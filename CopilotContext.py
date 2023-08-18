@@ -245,18 +245,18 @@ class CopilotContext:
 
         return request_args_dict 
 
-    def _rewrite_user_input(self, user_input):
+    async def _rewrite_user_input(self, user_input):
         rewrite_user_input_instruction = self.rewrite_user_input_template.render()
         chat_message = [
             {'role':'system', 'content': rewrite_user_input_instruction},
             {'role':'user', 'content': user_input}
         ]
         request_args_dict = self._format_request_dict(messages=chat_message)
-        response = openai.ChatCompletion.create(**request_args_dict)
+        response = await openai.ChatCompletion.acreate(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "")
         return message
     
-    def _refine_python_code(self, python_code):
+    async def _refine_python_code(self, python_code):
         refine_python_code_instruction = self.refine_python_code_template.render()
         chat_message = [
             {'role':'system', 'content': refine_python_code_instruction},
@@ -264,11 +264,11 @@ class CopilotContext:
         ]
 
         request_args_dict = self._format_request_dict(messages=chat_message)
-        response = openai.ChatCompletion.create(**request_args_dict)
+        response = await openai.ChatCompletion.acreate(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "")
         return message
     
-    def _find_dependent_python_packages(self, python_code):
+    async def _find_dependent_python_packages(self, python_code):
         find_dependent_python_packages_instruction = self.find_python_package_template.render()
         chat_message = [
             {'role':'system', 'content': find_dependent_python_packages_instruction},
@@ -276,29 +276,19 @@ class CopilotContext:
         ]
 
         request_args_dict = self._format_request_dict(messages=chat_message)
-        response = openai.ChatCompletion.create(**request_args_dict)
+        response = await openai.ChatCompletion.acreate(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "").replace(' ', '')
         return message.split(',')
 
-    def ask_gpt(self, content, print_info_func):
-        rewritten_user_intent = self._rewrite_user_input(content)
-        print(f'User intent: {rewritten_user_intent}')
-        self.messages.append({'role':'user', 'content':rewritten_user_intent})
-        request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
-        
-        response = openai.ChatCompletion.create(**request_args_dict)
-        self.parse_gpt_response(response, print_info_func)
-
     async def ask_gpt_async(self, content, print_info_func):
-        rewritten_user_intent = self._rewrite_user_input(content)
-        print(f'User intent: {rewritten_user_intent}')
+        rewritten_user_intent = await self._rewrite_user_input(content)
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
         request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
         
         response = await openai.ChatCompletion.acreate(**request_args_dict)
-        self.parse_gpt_response(response, print_info_func)
+        await self.parse_gpt_response(response, print_info_func)
 
-    def parse_gpt_response(self, response, print_info_func):
+    async def parse_gpt_response(self, response, print_info_func):
         response_ms = response.response_ms
         prompt_tokens = response.usage.prompt_tokens
         completion_tokens = response.usage.completion_tokens
@@ -319,7 +309,7 @@ class CopilotContext:
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
                 function_arguments = extract_functions_arguments(function_call)
-                self.dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
+                await self.dump_flow(**function_arguments, target_folder=self.local_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ''})
             elif function_name == 'read_local_file':
                 function_arguments = extract_functions_arguments(function_call)
@@ -385,7 +375,7 @@ class CopilotContext:
                 raise Exception(f'Invalid function name:{function_name}')
 
     # region functions
-    def dump_flow(self, target_folder, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None):
+    async def dump_flow(self, target_folder, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None):
         '''
         dump flow yaml and explaination and python functions into different files
         '''
@@ -418,9 +408,9 @@ class CopilotContext:
                 for k,v in fo.items():
                     if k in python_nodes:
                         with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
-                            refined_codes = self._refine_python_code(v)
+                            refined_codes = await self._refine_python_code(v)
                             f.write(refined_codes)
-                            python_packages = self._find_dependent_python_packages(refined_codes)
+                            python_packages = await self._find_dependent_python_packages(refined_codes)
                             requirement_python_packages.update(python_packages)
                     else:
                         print(f'Function {k} is not used in the flow, skip dumping it')

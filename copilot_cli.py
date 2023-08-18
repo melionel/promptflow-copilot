@@ -4,6 +4,7 @@ from termcolor import colored
 from dotenv import load_dotenv
 from constants import USER_TAG, COPILOT_TAG, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
 from CopilotContext import CopilotContext
+import asyncio
 colorama.init(autoreset=False)
 
 
@@ -23,7 +24,8 @@ def main():
         print(environment_ready_message)
     else:
         print(environment_not_ready_message + msg)
-    
+
+    loop = asyncio.get_event_loop()
     while True:
         goal = input(colored(f'[{USER_TAG}]: \n', 'red'))
         if goal == 'exit':
@@ -32,7 +34,7 @@ def main():
         else:
             print(colored(f'[{COPILOT_TAG}]:', 'red'))
             try:
-                copilot_context.ask_gpt(goal, print)
+                loop.run_until_complete(copilot_context.ask_gpt_async(goal, print))
             except Exception:
                 trace_back = traceback.format_exc()
                 print('Error occurred. Please fix the error and try again.\n' + trace_back)
