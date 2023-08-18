@@ -159,8 +159,9 @@ When create flow, folow below rules:
 17. list all extra python packages you used in the python functions
 18. list flow's inputs' and outputs' schema
 
-Please format your answer into six parts: flow_yaml, explaination, python_functions, prompts, flow_inputs_schema, flow_outputs_schema
-
+Please format the flow into six parts: flow_yaml, explaination, python_functions, prompts, flow_inputs_schema, flow_outputs_schema
+And directly dump these parts to user's local disk if possible.
+ 
 Pay attention:
 python_functions should be a list of dictionary, use the function's name as the key and the json string as the value.
 prompts should be a list of dictionary, use the node's name as the key and the prompt as the value.
