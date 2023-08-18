@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
 from logging_util import get_logger
 
+from function_calls import dump_flow, read_local_file, read_local_folder, read_flow_from_local_file, read_flow_from_local_folder, dump_sample_inputs, dump_evaluation_flow
+
 logger = get_logger()
 
 def extract_functions_arguments(function_call):
@@ -52,149 +54,13 @@ class CopilotContext:
         self.messages = []
 
         self.my_custom_functions = [
-            {
-                'name': 'dump_flow',
-                'description': 'dump flow to local disk',
-                'parameters':{
-                    'type': 'object',
-                    'properties': {
-                        'flow_yaml': {
-                            'type': 'string',
-                            'description': 'flow yaml string'
-                        },
-                        'explaination': {
-                            'type': 'string',
-                            'description': 'explaination about how the flow works'
-                        },
-                        'python_functions': {
-                            'type': 'array',
-                            'description': 'python function implementations',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'prompts': {
-                            'type': 'array',
-                            'description': 'prompts',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'flow_inputs_schema': {
-                            'type': 'array',
-                            'description': 'flow inputs schemas',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'flow_outputs_schema': {
-                            'type': 'array',
-                            'description': 'flow outputs schemas',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                    },
-                    'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts']
-                }
-            },
-            {
-                'name': 'read_local_file',
-                'description': 'read file content from local disk',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local file'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'read_local_folder',
-                'description': 'read all files content from local folder',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local folder'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'read_flow_from_local_file',
-                'description': 'read existing flow from a local file',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local file'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'read_flow_from_local_folder',
-                'description': 'read existing flow from local folder',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local folder'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'dump_sample_inputs',
-                'description': 'dump generate sample inputs into local file',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'sample_inputs': {
-                            'type': 'array',
-                            'description': 'generated sample inputs',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                    },
-                    'required': ['sample_inputs']
-                }
-            },
-            {
-                'name': 'dump_evaluation_flow',
-                'description': 'create evaluation flow',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'sample_inputs': {
-                            'type': 'array',
-                            'description': 'generated sample inputs',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'flow_outputs_schema': {
-                            'type': 'array',
-                            'description': 'flow outputs schemas',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                    },
-                    'required': ['sample_inputs', 'flow_outputs_schema']
-                }
-            },
+            dump_flow,
+            read_local_file,
+            read_local_folder,
+            read_flow_from_local_file,
+            read_flow_from_local_folder,
+            dump_sample_inputs,
+            dump_evaluation_flow
         ]
 
     def check_env(self):
