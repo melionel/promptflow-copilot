@@ -15,17 +15,6 @@ import function_calls
 
 logger = get_logger()
 
-def extract_functions_arguments(function_call):
-    try:
-        return json.loads(function_call)
-    except JSONDecodeError as ex:
-        pattern = r'\\\n'
-        updated_function_call = re.sub(pattern, r'\\n', str(function_call))
-        if updated_function_call == function_call:
-            logger.error(f'Failed to extract function arguments from {function_call}')
-            raise ex
-        return extract_functions_arguments(updated_function_call)
-
 class CopilotContext:
     def __init__(self) -> None:
         load_dotenv('pfcopilot.env')
@@ -48,6 +37,7 @@ class CopilotContext:
         self.find_python_package_template = jinja_env.get_template('prompts/find_python_package.jinja2')
         self.summarize_flow_name_template = jinja_env.get_template('prompts/summarize_flow_name.jinja2')
         self.understand_flow_template = jinja_env.get_template('prompts/understand_flow_instruction.jinja2')
+        self.json_string_fixer_template = jinja_env.get_template('prompts/json_string_fixer.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = []
@@ -156,6 +146,34 @@ class CopilotContext:
         message = getattr(response.choices[0].message, "content", "")
         return message
 
+    async def _fix_json_string(self, json_string, error, max_retry=3):
+        try:
+            fix_json_string_instruction = self.json_string_fixer_template.render(original_string=json_string, error_message=error)
+            chat_message = [
+                {'role':'system', 'content': fix_json_string_instruction},
+            ]
+            request_args_dict = self._format_request_dict(messages=chat_message)
+            response = await openai.ChatCompletion.acreate(**request_args_dict)
+            message = getattr(response.choices[0].message, "content", "")
+            json.loads(message)
+            return message
+        except JSONDecodeError as ex:
+            logger.error(f'Failed to fix json string {json_string} with error {error}')
+            if max_retry > 0 and message != json_string:
+                return await self._fix_json_string(message, str(ex), max_retry=max_retry-1)
+            raise ex
+
+    async def _extract_functions_arguments(self, function_call):
+        try:
+            return json.loads(function_call)
+        except JSONDecodeError as ex:
+            pattern = r'\\\n'
+            updated_function_call = re.sub(pattern, r'\\n', str(function_call))
+            if updated_function_call == function_call:
+                logger.error(f'Failed to extract function arguments from {function_call}')
+                updated_function_call = await self._fix_json_string(function_call, str(ex))
+            return await self._extract_functions_arguments(updated_function_call)
+
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
 
@@ -192,11 +210,11 @@ class CopilotContext:
         if function_call != "":
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 await self.dump_flow(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ''})
             elif function_name == 'read_local_file':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 file_content = self.read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
@@ -210,7 +228,7 @@ class CopilotContext:
                     self.messages.pop()
                     await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_local_folder':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 files_content = self.read_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
@@ -224,15 +242,15 @@ class CopilotContext:
                     self.messages.pop()
                     await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_sample_inputs':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'dump_evaluation_flow':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'read_flow_from_local_file':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 file_content = self.read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read flow from a file, but the file does not exists')
@@ -247,7 +265,7 @@ class CopilotContext:
                     self.messages.pop()
                     await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_flow_from_local_folder':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.flow_folder = function_arguments['path']
                 files_content = self.read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
@@ -262,7 +280,7 @@ class CopilotContext:
                     self.messages.pop()
                     await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_flow_definition_and_description':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'python':
