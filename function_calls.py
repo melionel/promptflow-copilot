@@ -147,3 +147,22 @@ dump_evaluation_flow ={
         'required': ['sample_inputs', 'flow_outputs_schema']
     }
 }
+
+dump_flow_definition_and_description = {
+    'name': 'dump_flow_definition_and_description',
+    'description': 'dump flow yaml and description to local disk',
+    'parameters': {
+        'type': 'object',
+        'properties': {
+            'flow_yaml': {
+                'type': 'string',
+                'description': 'flow yaml string'
+            },
+            'description': {
+                'type': 'string',
+                'description': 'description about how the flow works'
+            }
+        },
+        'required': ['flow_yaml', 'description']
+    }
+}
