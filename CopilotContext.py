@@ -104,6 +104,7 @@ class CopilotContext:
         request_args_dict = self._format_request_dict(messages=chat_message)
         response = await openai.ChatCompletion.acreate(**request_args_dict)
         message = getattr(response.choices[0].message, "content", "")
+        logger.info(f"rewrite_user_input: {message}")
         return message
     
     async def _refine_python_code(self, python_code):

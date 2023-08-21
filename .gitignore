@@ -1,6 +1,6 @@
 pfcopilot.env
 test_temp.py
-pfcopilot_err.log
+pfcopilot*.log
 __pycache__
 .promptflow
 .vscode
