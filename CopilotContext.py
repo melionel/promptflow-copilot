@@ -175,6 +175,7 @@ class CopilotContext:
 
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
+        potential_function_calls = self.copilot_general_function_calls
 
         if self.flow_folder:
             system_message = self.understand_flow_template.render(flow_yaml=self.flow_yaml, flow_description=self.flow_description)
