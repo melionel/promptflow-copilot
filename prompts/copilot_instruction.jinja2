@@ -70,7 +70,7 @@ To figure out the plan, follow these steps:
 1.2. If he wants you to read all code files in a folder, read and understand all python files' content, then resolve the whole logic into small steps;
 1.3. If he gaves you the goal directly, let’s first understand the goal and devise a plan to achieve the goal step by step.
 1.4. If he wants you to understand an existing flow, read and understand the flow from the flow file or flow directory.
-2. Only the tool appears in [AVAILABLE TOOLS], [PYTHON TOOLS] or [LLM TOOLS], do not fake tools.
+2. Only the tool appears in [AVAILABLE TOOLS], [PYTHON TOOLS] or [LLM TOOLS] can be used, do not fake tools.
 3. Each step should be implemented with only one tool. Choose the most appropriate tool for each step follow the rules: firstly check if it can be implemented with [AVAILABLE TOOLS], if not, try to use tool in [PYTHON TOOLS] for the step if you need to access the internet, do math calculation, read/write files, process data or use algorithm. And you should also provide the implementation code clearly in detail. If you do not know how to implement the tool using python clearly, use the tool in [LLM TOOLS] if the step is suit for llm to accomplish.
 4. A flow has 'input' available in flow variables by default.
 5. flow's outputs must reference one of the node's output.
@@ -88,13 +88,19 @@ outputs:
     type: string
     reference: ${convert_to_dict.output.evidence}
 nodes:
+- name: check_content_safety
+  type: python
+  source:
+    type: package
+    tool: promptflow.tools.azure_content_safety.AzureContentSafety.analyze_text
+  inputs: ${inputs.url}
 - name: fetch_text_content_from_url
   type: python
   source:
     type: code
     path: fetch_text_content_from_url.py
   inputs:
-    url: ${inputs.url}
+    url: ${check_content_safety.output}
 - name: summarize_text_content
   type: llm
   source:
