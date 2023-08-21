@@ -11,19 +11,9 @@ from dotenv import load_dotenv
 
 from jinja2 import Environment, FileSystemLoader
 from logging_util import get_logger
+import function_calls
 
 logger = get_logger()
-
-def extract_functions_arguments(function_call):
-    try:
-        return json.loads(function_call)
-    except JSONDecodeError as ex:
-        pattern = r'\\\n'
-        updated_function_call = re.sub(pattern, r'\\n', str(function_call))
-        if updated_function_call == function_call:
-            logger.error(f'Failed to extract function arguments from {function_call}')
-            raise ex
-        return extract_functions_arguments(updated_function_call)
 
 class CopilotContext:
     def __init__(self) -> None:
@@ -37,6 +27,8 @@ class CopilotContext:
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
         self.flow_folder = None
+        self.flow_description = None
+        self.flow_yaml = None
 
         jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
         self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
@@ -44,156 +36,20 @@ class CopilotContext:
         self.refine_python_code_template = jinja_env.get_template('prompts/refine_python_code.jinja2')
         self.find_python_package_template = jinja_env.get_template('prompts/find_python_package.jinja2')
         self.summarize_flow_name_template = jinja_env.get_template('prompts/summarize_flow_name.jinja2')
+        self.understand_flow_template = jinja_env.get_template('prompts/understand_flow_instruction.jinja2')
+        self.json_string_fixer_template = jinja_env.get_template('prompts/json_string_fixer.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
-        self.messages = [
-            {'role':'system', 'content': self.system_instruction},
-        ]
+        self.messages = []
 
-        self.my_custom_functions = [
-            {
-                'name': 'dump_flow',
-                'description': 'dump flow to local disk',
-                'parameters':{
-                    'type': 'object',
-                    'properties': {
-                        'flow_yaml': {
-                            'type': 'string',
-                            'description': 'flow yaml string'
-                        },
-                        'explaination': {
-                            'type': 'string',
-                            'description': 'explaination about how the flow works'
-                        },
-                        'python_functions': {
-                            'type': 'array',
-                            'description': 'python function implementations',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'prompts': {
-                            'type': 'array',
-                            'description': 'prompts',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'flow_inputs_schema': {
-                            'type': 'array',
-                            'description': 'flow inputs schemas',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'flow_outputs_schema': {
-                            'type': 'array',
-                            'description': 'flow outputs schemas',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                    },
-                    'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts']
-                }
-            },
-            {
-                'name': 'read_local_file',
-                'description': 'read file content from local disk',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local file'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'read_local_folder',
-                'description': 'read all files content from local folder',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local folder'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'read_flow_from_local_file',
-                'description': 'read existing flow from a local file',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local file'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'read_flow_from_local_folder',
-                'description': 'read existing flow from local folder',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'path': {
-                            'type': 'string',
-                            'description': 'path to local folder'
-                        }
-                    },
-                    'required': ['path']
-                }
-            },
-            {
-                'name': 'dump_sample_inputs',
-                'description': 'dump generate sample inputs into local file',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'sample_inputs': {
-                            'type': 'array',
-                            'description': 'generated sample inputs',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                    },
-                    'required': ['sample_inputs']
-                }
-            },
-            {
-                'name': 'dump_evaluation_flow',
-                'description': 'create evaluation flow',
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'sample_inputs': {
-                            'type': 'array',
-                            'description': 'generated sample inputs',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                        'flow_outputs_schema': {
-                            'type': 'array',
-                            'description': 'flow outputs schemas',
-                            'items': {
-                                'type': 'string'
-                            }
-                        },
-                    },
-                    'required': ['sample_inputs', 'flow_outputs_schema']
-                }
-            },
+        self.copilot_general_function_calls = [
+            function_calls.dump_flow,
+            function_calls.read_local_file,
+            function_calls.read_local_folder,
+            function_calls.read_flow_from_local_file,
+            function_calls.read_flow_from_local_folder,
+            function_calls.dump_sample_inputs,
+            function_calls.dump_evaluation_flow
         ]
 
     def check_env(self):
@@ -290,10 +146,46 @@ class CopilotContext:
         message = getattr(response.choices[0].message, "content", "")
         return message
 
+    async def _fix_json_string(self, json_string, error, max_retry=3):
+        try:
+            fix_json_string_instruction = self.json_string_fixer_template.render(original_string=json_string, error_message=error)
+            chat_message = [
+                {'role':'system', 'content': fix_json_string_instruction},
+            ]
+            request_args_dict = self._format_request_dict(messages=chat_message)
+            response = await openai.ChatCompletion.acreate(**request_args_dict)
+            message = getattr(response.choices[0].message, "content", "")
+            json.loads(message)
+            return message
+        except JSONDecodeError as ex:
+            logger.error(f'Failed to fix json string {json_string} with error {error}')
+            if max_retry > 0 and message != json_string:
+                return await self._fix_json_string(message, str(ex), max_retry=max_retry-1)
+            raise ex
+
+    async def _extract_functions_arguments(self, function_call):
+        try:
+            return json.loads(function_call)
+        except JSONDecodeError as ex:
+            pattern = r'\\\n'
+            updated_function_call = re.sub(pattern, r'\\n', str(function_call))
+            if updated_function_call == function_call:
+                logger.error(f'Failed to extract function arguments from {function_call}')
+                updated_function_call = await self._fix_json_string(function_call, str(ex))
+            return await self._extract_functions_arguments(updated_function_call)
+
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
+
+        if self.flow_folder:
+            system_message = self.understand_flow_template.render(flow_yaml=self.flow_yaml, flow_description=self.flow_description)
+            self.messages[0] = {'role':'system', 'content': system_message}
+        elif len(self.messages) == 0:
+            self.messages.append({'role':'system', 'content':self.system_instruction})
+
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
-        request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
+        request_args_dict = self._format_request_dict(
+            messages=self.messages, functions=self.copilot_general_function_calls, function_call='auto')
         
         response = await openai.ChatCompletion.acreate(**request_args_dict)
         await self.parse_gpt_response(response, print_info_func)
@@ -314,63 +206,83 @@ class CopilotContext:
             self.messages.append({'role':response.choices[0].message.role, 'content':message})
             print_info_func(f'{message}')
         
-        if finish_reason == 'function_call':
-            function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        if function_call != "":
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 await self.dump_flow(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ''})
             elif function_name == 'read_local_file':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 file_content = self.read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
-                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
-                    new_response = openai.ChatCompletion.create(**request_args_dict)
-                    self.parse_gpt_response(new_response, print_info_func)
+                    possible_function_calls = [function_calls.dump_flow]
+                    request_args_dict = self._format_request_dict(
+                        messages=self.messages, functions=possible_function_calls, function_call='auto')
+                    new_response = await openai.ChatCompletion.acreate(**request_args_dict)
+                    # remove the last message
+                    self.messages.pop()
+                    await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_local_folder':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 files_content = self.read_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
-                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
-                    new_response = openai.ChatCompletion.create(**request_args_dict)
-                    self.parse_gpt_response(new_response, print_info_func)
+                    possible_function_calls = [function_calls.dump_flow]
+                    request_args_dict = self._format_request_dict(
+                        messages=self.messages, functions=possible_function_calls, function_call='auto')
+                    new_response = await openai.ChatCompletion.acreate(**request_args_dict)
+                    # remove the last message
+                    self.messages.pop()
+                    await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'dump_sample_inputs':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'dump_evaluation_flow':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'read_flow_from_local_file':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 file_content = self.read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read flow from a file, but the file does not exists')
                 else:
                     self.flow_folder = os.path.dirname(function_arguments['path'])
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
-                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
-                    new_response = openai.ChatCompletion.create(**request_args_dict)
-                    self.parse_gpt_response(new_response, print_info_func)
+                    request_args_dict = self._format_request_dict(
+                        messages=self.messages,
+                        functions=[function_calls.dump_flow_definition_and_description],
+                        function_call={'name': 'dump_flow_definition_and_description'})
+                    new_response = await openai.ChatCompletion.acreate(**request_args_dict)
+                    self.messages.pop()
+                    await self.parse_gpt_response(new_response, print_info_func)
             elif function_name == 'read_flow_from_local_folder':
-                function_arguments = extract_functions_arguments(function_call)
+                function_arguments = await self._extract_functions_arguments(function_call)
                 self.flow_folder = function_arguments['path']
                 files_content = self.read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read flow from a folder, but the folder does not exists')
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
-                    request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
-                    new_response = openai.ChatCompletion.create(**request_args_dict)
-                    self.parse_gpt_response(new_response, print_info_func)
+                    request_args_dict = self._format_request_dict(
+                        messages=self.messages, 
+                        functions=[function_calls.dump_flow_definition_and_description], 
+                        function_call={'name': 'dump_flow_definition_and_description'})
+                    new_response = await openai.ChatCompletion.acreate(**request_args_dict)
+                    self.messages.pop()
+                    await self.parse_gpt_response(new_response, print_info_func)
+            elif function_name == 'dump_flow_definition_and_description':
+                function_arguments = await self._extract_functions_arguments(function_call)
+                self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": ""})
             elif function_name == 'python':
                 execution_result = {}
                 exec(function_call, globals(), execution_result)
@@ -378,9 +290,9 @@ class CopilotContext:
                 for key, value in execution_result.items():
                     str_result[key] = str(value)
                 self.messages.append({"role": "function", "name": function_name, "content":json.dumps(str_result)})
-                request_args_dict = self._format_request_dict(messages=self.messages, functions=self.my_custom_functions, function_call='auto')
+                request_args_dict = self._format_request_dict(messages=self.messages, functions=self.copilot_general_function_calls, function_call='auto')
                 new_response = openai.ChatCompletion.create(**request_args_dict)
-                self.parse_gpt_response(new_response, print_info_func)
+                await self.parse_gpt_response(new_response, print_info_func)
             else:
                 raise Exception(f'Invalid function name:{function_name}')
 
@@ -403,6 +315,7 @@ class CopilotContext:
         print_info_func('Dumping flow.dag.yaml')
         with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
             f.write(flow_yaml)
+            self.flow_yaml = flow_yaml
 
         parsed_flow_yaml = yaml.safe_load(flow_yaml)
         python_nodes = []
@@ -416,6 +329,7 @@ class CopilotContext:
         print_info_func('Dumping flow.explaination.txt')
         with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
             f.write(explaination)
+            self.flow_description = explaination
 
         requirement_python_packages = set()
         if python_functions:
@@ -492,12 +406,14 @@ class CopilotContext:
         if os.path.isfile(path):
             return self.read_local_file(path, print_info_func)
         print_info_func(f'read existing flow from folder:{path}')
+        self.flow_folder = path
         return self.read_local_folder(path, print_info_func, included_file_types=['.yaml'])
 
     def read_flow_from_local_file(self, path, print_info_func):
         if os.path.isdir(path):
-            return self.read_local_folder(path, print_info_func)
+            return self.read_flow_from_local_folder(path, print_info_func)
         print_info_func(f'read existing flow from file:{path}')
+        self.flow_folder = os.path.dirname(path)
         return self.read_local_file(path, print_info_func)
 
     def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func):
@@ -547,7 +463,7 @@ class CopilotContext:
                 if sample_input is None:
                     continue
                 else:
-                    sample_input = json.loads(sample_input)
+                    sample_input = json.loads(sample_input) if type(sample_input) == str else sample_input
                     flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else json.loads(flow_outputs_schema)
                     for k,v in flow_outputs_schema.items():
                         sample_input[k] = 'expected_output'
@@ -610,4 +526,8 @@ class CopilotContext:
 
         print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
 
+    def dump_flow_definition_and_description(self, flow_yaml, description, print_info_func):
+        self.flow_yaml = flow_yaml
+        self.flow_description = description
+        print_info_func(description)
     # endregion
