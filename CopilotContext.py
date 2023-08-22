@@ -104,7 +104,7 @@ class CopilotContext:
                 if role == 'user':
                     conversation_message_array.append(f'User: {message["content"]}')
                 else:
-                    conversation_message_array.append(f'You: {message["content"]}')
+                    conversation_message_array.append(f'PF copilot: {message["content"]}')
         conversation_message_array.reverse()
         conversation_message = '\n'.join(conversation_message_array)
 
@@ -292,12 +292,7 @@ class CopilotContext:
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
                 next_possible_function_calls = [function_calls.dump_sample_inputs, function_calls.dump_evaluation_flow]
             elif function_name == 'python':
-                execution_result = {}
-                exec(function_call, globals(), execution_result)
-                str_result = {}
-                for key, value in execution_result.items():
-                    str_result[key] = str(value)
-                self.messages.append({"role": "function", "name": function_name, "content":json.dumps(str_result)})
+                self.messages.append({"role": "function", "name": function_name, "content":"error: python unavailable"})
             else:
                 raise Exception(f'Invalid function name:{function_name}')
             
