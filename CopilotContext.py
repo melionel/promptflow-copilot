@@ -94,7 +94,21 @@ class CopilotContext:
         return request_args_dict 
 
     async def _rewrite_user_input(self, user_input):
-        rewrite_user_input_instruction = self.rewrite_user_input_template.render()
+        # construct conversation message, only keep the last four messages for user and assistant
+        cur_len = 0
+        conversation_message_array = []
+        for message in reversed(self.messages):
+            role = message['role']
+            if role != 'system' and role != 'function' and cur_len < 4:
+                cur_len += 1
+                if role == 'user':
+                    conversation_message_array.append(f'User: {message["content"]}')
+                else:
+                    conversation_message_array.append(f'You: {message["content"]}')
+        conversation_message_array.reverse()
+        conversation_message = '\n'.join(conversation_message_array)
+
+        rewrite_user_input_instruction = self.rewrite_user_input_template.render(conversation=conversation_message)
         chat_message = [
             {'role':'system', 'content': rewrite_user_input_instruction},
             {'role':'user', 'content': user_input}
@@ -162,17 +176,17 @@ class CopilotContext:
                 return await self._fix_json_string(message, str(ex), max_retry=max_retry-1)
             raise ex
 
-    async def _extract_functions_arguments(self, function_call):
+    async def _smart_json_loads(self, json_string):
         try:
-            return json.loads(function_call)
+            return json.loads(json_string)
         except JSONDecodeError as ex:
             pattern = r'\\\n'
-            updated_function_call = re.sub(pattern, r'\\n', str(function_call))
-            if updated_function_call == function_call:
-                logger.error(f'Failed to extract function arguments from {function_call}')
-                updated_function_call = await self._fix_json_string(function_call, str(ex))
-            return await self._extract_functions_arguments(updated_function_call)
-
+            updated_function_call = re.sub(pattern, r'\\n', str(json_string))
+            if updated_function_call == json_string:
+                logger.error(f'Failed to load json string {json_string}')
+                updated_function_call = await self._fix_json_string(json_string, str(ex))
+            return await self._smart_json_loads(updated_function_call)
+        
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
         potential_function_calls = self.copilot_general_function_calls
@@ -196,6 +210,7 @@ class CopilotContext:
         
         response = await openai.ChatCompletion.acreate(**request_args_dict)
         await self.parse_gpt_response(response, print_info_func)
+        self._clear_function_message()
 
     async def parse_gpt_response(self, response, print_info_func):
         response_ms = response.response_ms
@@ -219,12 +234,12 @@ class CopilotContext:
         if function_call != "":
             function_name = getattr(response.choices[0].message.function_call, "name", "")
             if function_name == 'dump_flow':
-                function_arguments = await self._extract_functions_arguments(function_call)
-                await self.dump_flow(**function_arguments, print_info_func=print_info_func)
-                self.messages.append({"role": "function", "name": function_name, "content": ''})
+                function_arguments = await self._smart_json_loads(function_call)
+                flow_folder = await self.dump_flow(**function_arguments, print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": f'{flow_folder}'})
                 early_stop = True
             elif function_name == 'read_local_file':
-                function_arguments = await self._extract_functions_arguments(function_call)
+                function_arguments = await self._smart_json_loads(function_call)
                 file_content = self.read_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read code from a file, but the file does not exists')
@@ -233,7 +248,7 @@ class CopilotContext:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     next_possible_function_calls = [function_calls.dump_flow]
             elif function_name == 'read_local_folder':
-                function_arguments = await self._extract_functions_arguments(function_call)
+                function_arguments = await self._smart_json_loads(function_call)
                 files_content = self.read_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
                     print_info_func('you ask me to read code from a folder, but the folder does not exists')
@@ -242,17 +257,17 @@ class CopilotContext:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     next_possible_function_calls = [function_calls.dump_flow]
             elif function_name == 'dump_sample_inputs':
-                function_arguments = await self._extract_functions_arguments(function_call)
-                self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
-                self.messages.append({"role": "function", "name": function_name, "content": ""})
+                function_arguments = await self._smart_json_loads(function_call)
+                sample_input_file = await self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": f"{sample_input_file}"})
                 early_stop = True
             elif function_name == 'dump_evaluation_flow':
-                function_arguments = await self._extract_functions_arguments(function_call)
-                self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
-                self.messages.append({"role": "function", "name": function_name, "content": ""})
+                function_arguments = await self._smart_json_loads(function_call)
+                evaluation_flow_folder = await self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": f"{evaluation_flow_folder}"})
                 early_stop = True
             elif function_name == 'read_flow_from_local_file':
-                function_arguments = await self._extract_functions_arguments(function_call)
+                function_arguments = await self._smart_json_loads(function_call)
                 file_content = self.read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
                 if not file_content:
                     print_info_func('you ask me to read flow from a file, but the file does not exists')
@@ -262,7 +277,7 @@ class CopilotContext:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
             elif function_name == 'read_flow_from_local_folder':
-                function_arguments = await self._extract_functions_arguments(function_call)
+                function_arguments = await self._smart_json_loads(function_call)
                 self.flow_folder = function_arguments['path']
                 files_content = self.read_flow_from_local_folder(**function_arguments, print_info_func=print_info_func)
                 if not files_content:
@@ -272,7 +287,7 @@ class CopilotContext:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
             elif function_name == 'dump_flow_definition_and_description':
-                function_arguments = await self._extract_functions_arguments(function_call)
+                function_arguments = await self._smart_json_loads(function_call)
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
                 next_possible_function_calls = [function_calls.dump_sample_inputs, function_calls.dump_evaluation_flow]
@@ -290,9 +305,15 @@ class CopilotContext:
             request_args_dict = self._format_request_dict(
                 messages=self.messages, functions=next_possible_function_calls, function_call='auto')
             new_response = await openai.ChatCompletion.acreate(**request_args_dict)
-            # remove the last message
-            self.messages.pop()
             await self.parse_gpt_response(new_response, print_info_func)    
+
+    def _clear_function_message(self):
+        '''
+        clear some function message from messages to reduce chat history size
+        '''
+        for message in self.messages:
+            if message['role'] == 'function' and message['name'] in ['read_local_file', 'read_local_folder', 'read_flow_from_local_file', 'read_flow_from_local_folder']:
+                self.messages.remove(message)
 
     # region functions
     async def dump_flow(self, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None, **kwargs):
@@ -333,7 +354,7 @@ class CopilotContext:
         if python_functions:
             print_info_func('Dumping python functions')
             for func in python_functions:
-                fo =  func if type(func) == dict else json.loads(func)
+                fo =  func if type(func) == dict else await self._smart_json_loads(func)
                 for k,v in fo.items():
                     if k in python_nodes:
                         with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
@@ -347,7 +368,7 @@ class CopilotContext:
         if prompts:
             print_info_func('Dumping prompts')
             for prompt in prompts:
-                po = prompt if type(prompt) == dict else json.loads(prompt)
+                po = prompt if type(prompt) == dict else await self._smart_json_loads(prompt)
                 for k,v in po.items():
                     if k in llm_nodes:
                         with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
@@ -359,6 +380,8 @@ class CopilotContext:
             print_info_func('Dumping requirements.txt')
             with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
                 f.write('\n'.join(requirement_python_packages))
+
+        return self.flow_folder
 
     def read_local_file(self, path, print_info_func, **kwargs):
         if os.path.isdir(path):
@@ -414,24 +437,28 @@ class CopilotContext:
         self.flow_folder = os.path.dirname(path)
         return self.read_local_file(path, print_info_func)
 
-    def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, **kwargs):
+    async def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, **kwargs):
         if not os.path.exists(target_folder):
             print_info_func(f'Before generate the sample inputs, please generate the flow first')
             return
 
+        sample_inputs_file = f'{target_folder}\\flow.sample_inputs.jsonl'
         if sample_inputs is None:
             print_info_func('Failed to generate inputs for your flow, please try again')
         else:
-            with open(f'{target_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+            with open(sample_inputs_file, 'w', encoding="utf-8") as f:
                 for sample_input in sample_inputs:
                     if sample_input is None:
                         continue
                     else:
-                        sample_input = sample_input if type(sample_input) == str else json.dumps(sample_input)
+                        sample_input = await self._smart_json_loads(sample_input) if type(sample_input) == str else sample_input
+                        sample_input = json.dumps(sample_input)
                     f.write(sample_input + '\n')
             print_info_func(f'Generated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
+        
+        return sample_inputs_file
 
-    def dump_evaluation_flow(self, sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, **kwargs):
+    async def dump_evaluation_flow(self, sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, **kwargs):
         if not os.path.exists(flow_folder):
             print_info_func(f'Before generate the evaluation flow, please generate the flow first')
             return
@@ -461,8 +488,8 @@ class CopilotContext:
                 if sample_input is None:
                     continue
                 else:
-                    sample_input = json.loads(sample_input) if type(sample_input) == str else sample_input
-                    flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else json.loads(flow_outputs_schema)
+                    sample_input = await self._smart_json_loads(sample_input) if type(sample_input) == str else sample_input
+                    flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else await self._smart_json_loads(flow_outputs_schema)
                     for k,v in flow_outputs_schema.items():
                         sample_input[k] = 'expected_output'
                     first_output_column = next(iter(flow_outputs_schema)) if flow_outputs_schema else ''
@@ -523,6 +550,8 @@ class CopilotContext:
             f.write(sdk_eval_sample_code)
 
         print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
+
+        return eval_flow_folder
 
     def dump_flow_definition_and_description(self, flow_yaml, description, print_info_func, **kwargs):
         self.flow_yaml = flow_yaml

@@ -1,6 +1,6 @@
 dump_flow = {
     'name': 'dump_flow',
-    'description': 'dump flow to local disk',
+    'description': 'dump the generated/converted/modified flow to local disk for user and return the path',
     'parameters': {
         'type': 'object',
         'properties': {
@@ -39,7 +39,7 @@ dump_flow = {
                 'items': {
                     'type': 'string'
                 }
-            },
+            }
         },
         'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts']
     }
@@ -107,7 +107,7 @@ read_flow_from_local_folder ={
 
 dump_sample_inputs = {
     'name': 'dump_sample_inputs',
-    'description': 'dump generate sample inputs into local file',
+    'description': 'generate sample inputs for the flow and dump the generated sample inputs into local file for user and return the file path',
     'parameters': {
         'type': 'object',
         'properties': {
@@ -125,7 +125,7 @@ dump_sample_inputs = {
 
 dump_evaluation_flow ={
     'name': 'dump_evaluation_flow',
-    'description': 'create evaluation flow',
+    'description': 'create evaluation flow for the flow and dump the generated evaluation flow into local file for user and return the path',
     'parameters': {
         'type': 'object',
         'properties': {

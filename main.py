@@ -13,8 +13,8 @@ from tool_tip import ToolTip
 current_tag = USER_TAG
 
 def handle_exception(exc_traceback):
-    messagebox.showerror("Error occurred. Please fix the error and try again.", exc_traceback)
-    add_to_chat("Error occurred. Please fix the error and try again if it is possible.")
+    messagebox.showerror("Error occurred. Please try again.", exc_traceback)
+    add_to_chat("Error occurred. Please try again.")
     update_label.configure(text="Waiting for user's input...")
     logger.error(exc_traceback)
 
