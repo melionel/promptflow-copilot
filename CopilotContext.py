@@ -210,7 +210,10 @@ class CopilotContext:
         
         response = await openai.ChatCompletion.acreate(**request_args_dict)
         await self.parse_gpt_response(response, print_info_func)
-        self._clear_function_message()
+
+        # clear function message if we have already got the flow
+        if self.flow_folder:
+            self._clear_function_message()
 
     async def parse_gpt_response(self, response, print_info_func):
         response_ms = response.response_ms
@@ -246,6 +249,7 @@ class CopilotContext:
                     early_stop = True
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
+                    self.messages.append({"role": "system", "content": "You have read the file content, understand it first and then determine your next step."})
                     next_possible_function_calls = [function_calls.dump_flow]
             elif function_name == 'read_local_folder':
                 function_arguments = await self._smart_json_loads(function_call)
@@ -255,6 +259,7 @@ class CopilotContext:
                     early_stop = True
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
+                    self.messages.append({"role": "system", "content": "You have read all the files in the folder, understand it first and then determine your next step."})
                     next_possible_function_calls = [function_calls.dump_flow]
             elif function_name == 'dump_sample_inputs':
                 function_arguments = await self._smart_json_loads(function_call)
@@ -294,7 +299,7 @@ class CopilotContext:
             elif function_name == 'python':
                 self.messages.append({"role": "function", "name": function_name, "content":"error: python unavailable"})
             else:
-                raise Exception(f'Invalid function name:{function_name}')
+                self.messages.append({"role": "system", "content":"do not try to call functions that does not exist!"})
             
         if finish_reason != 'stop' and not early_stop:
             request_args_dict = self._format_request_dict(
@@ -311,10 +316,10 @@ class CopilotContext:
                 self.messages.remove(message)
 
     # region functions
-    async def dump_flow(self, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None, **kwargs):
-        '''
-        dump flow yaml and explaination and python functions into different files
-        '''
+    async def dump_flow(self, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call dump_flow reasoning: {reasoning}')
+
         if not self.flow_folder:
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             flow_name = await self._summarize_flow_name(explaination)
@@ -332,13 +337,13 @@ class CopilotContext:
             self.flow_yaml = flow_yaml
 
         parsed_flow_yaml = yaml.safe_load(flow_yaml)
-        python_nodes = []
-        llm_nodes = []
+        python_nodes_path_dict = {}
+        llm_nodes_path_dict = {}
         for node in parsed_flow_yaml['nodes']:
             if node['type'] == 'python':
-                python_nodes.append(node['name'])
+                python_nodes_path_dict[node['name']] = node['source']['path']
             elif node['type'] == 'llm':
-                llm_nodes.append(node['name'])
+                llm_nodes_path_dict[node['name']] = node['source']['path']
 
         print_info_func('Dumping flow.explaination.txt')
         with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
@@ -351,8 +356,8 @@ class CopilotContext:
             for func in python_functions:
                 fo =  func if type(func) == dict else await self._smart_json_loads(func)
                 for k,v in fo.items():
-                    if k in python_nodes:
-                        with open(f'{target_folder}\\{k}.py', 'w', encoding="utf-8") as f:
+                    if k in python_nodes_path_dict:
+                        with open(f'{target_folder}\\{python_nodes_path_dict[k]}', 'w', encoding="utf-8") as f:
                             refined_codes = await self._refine_python_code(v)
                             f.write(refined_codes)
                             python_packages = await self._find_dependent_python_packages(refined_codes)
@@ -365,8 +370,8 @@ class CopilotContext:
             for prompt in prompts:
                 po = prompt if type(prompt) == dict else await self._smart_json_loads(prompt)
                 for k,v in po.items():
-                    if k in llm_nodes:
-                        with open(f'{target_folder}\\{k}.jinja2', 'w', encoding="utf-8") as f:
+                    if k in llm_nodes_path_dict:
+                        with open(f'{target_folder}\\{llm_nodes_path_dict[k]}', 'w', encoding="utf-8") as f:
                             f.write(v)
                     else:
                         logger.info(f'Prompt {k} is not used in the flow, skip dumping it')
@@ -378,7 +383,10 @@ class CopilotContext:
 
         return self.flow_folder
 
-    def read_local_file(self, path, print_info_func, **kwargs):
+    def read_local_file(self, path, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call read_local_file reasoning: {reasoning}')
+
         if os.path.isdir(path):
             return self.read_local_folder(path, print_info_func)
 
@@ -390,7 +398,10 @@ class CopilotContext:
             with open(path, 'r', encoding="utf-8") as f:
                 return f.read()
 
-    def read_local_folder(self, path, print_info_func, included_file_types=['.ipynb', '.py'], **kwargs):
+    def read_local_folder(self, path, print_info_func, included_file_types=['.ipynb', '.py'], reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call read_local_folder reasoning: {reasoning}')
+
         if os.path.isfile(path):
             return self.read_local_file(path, print_info_func)
 
@@ -418,21 +429,30 @@ class CopilotContext:
                         file_contents_dict[key] = file_content
             return json.dumps(file_contents_dict)
 
-    def read_flow_from_local_folder(self, path, print_info_func, **kwargs):
+    def read_flow_from_local_folder(self, path, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call read_flow_from_local_folder reasoning: {reasoning}')
+
         if os.path.isfile(path):
             return self.read_local_file(path, print_info_func)
         print_info_func(f'read existing flow from folder:{path}')
         self.flow_folder = path
         return self.read_local_folder(path, print_info_func, included_file_types=['.yaml'])
 
-    def read_flow_from_local_file(self, path, print_info_func, **kwargs):
+    def read_flow_from_local_file(self, path, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call read_flow_from_local_file reasoning: {reasoning}')
+
         if os.path.isdir(path):
             return self.read_flow_from_local_folder(path, print_info_func)
         print_info_func(f'read existing flow from file:{path}')
         self.flow_folder = os.path.dirname(path)
         return self.read_local_file(path, print_info_func)
 
-    async def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, **kwargs):
+    async def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call dump_sample_inputs reasoning: {reasoning}')
+
         if not os.path.exists(target_folder):
             print_info_func(f'Before generate the sample inputs, please generate the flow first')
             return
@@ -453,7 +473,10 @@ class CopilotContext:
         
         return sample_inputs_file
 
-    async def dump_evaluation_flow(self, sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, **kwargs):
+    async def dump_evaluation_flow(self, sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call dump_evaluation_flow reasoning: {reasoning}')
+
         if not os.path.exists(flow_folder):
             print_info_func(f'Before generate the evaluation flow, please generate the flow first')
             return
@@ -548,7 +571,10 @@ class CopilotContext:
 
         return eval_flow_folder
 
-    def dump_flow_definition_and_description(self, flow_yaml, description, print_info_func, **kwargs):
+    def dump_flow_definition_and_description(self, flow_yaml, description, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call dump_flow_definition_and_description reasoning: {reasoning}')
+
         self.flow_yaml = flow_yaml
         self.flow_description = description
         print_info_func(description)

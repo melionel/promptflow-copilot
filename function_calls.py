@@ -39,39 +39,51 @@ dump_flow = {
                 'items': {
                     'type': 'string'
                 }
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts']
+        'required': ['flow_yaml', 'explaination', 'python_functions', 'prompts', 'reasoning']
     }
 }
 
 read_local_file = {
     'name': 'read_local_file',
-    'description': 'read file content from local disk',
+    'description': 'read file content from local disk and return the content in string format',
     'parameters': {
         'type': 'object',
         'properties': {
             'path': {
                 'type': 'string',
                 'description': 'path to local file'
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['path']
+        'required': ['path', 'reasoning']
     }
 }
 
 read_local_folder = {
     'name': 'read_local_folder',
-    'description': 'read all files content from local folder',
+    'description': 'read all files content from local folder and return a dictionary of file name and file content',
     'parameters': {
         'type': 'object',
         'properties': {
             'path': {
                 'type': 'string',
                 'description': 'path to local folder'
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['path']
+        'required': ['path', 'reasoning']
     }
 }
 
@@ -84,9 +96,13 @@ read_flow_from_local_file = {
             'path': {
                 'type': 'string',
                 'description': 'path to local file'
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['path']
+        'required': ['path', 'reasoning']
     }
 }
 
@@ -99,9 +115,13 @@ read_flow_from_local_folder ={
             'path': {
                 'type': 'string',
                 'description': 'path to local folder'
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['path']
+        'required': ['path', 'reasoning']
     }
 }
 
@@ -116,10 +136,14 @@ dump_sample_inputs = {
                 'description': 'generated sample inputs',
                 'items': {
                     'type': 'string'
-                }
+                },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
+            }
             },
         },
-        'required': ['sample_inputs']
+        'required': ['sample_inputs', 'reasoning']
     }
 }
 
@@ -143,8 +167,12 @@ dump_evaluation_flow ={
                     'type': 'string'
                 }
             },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
+            }
         },
-        'required': ['sample_inputs', 'flow_outputs_schema']
+        'required': ['sample_inputs', 'flow_outputs_schema', 'reasoning']
     }
 }
 
@@ -161,8 +189,12 @@ dump_flow_definition_and_description = {
             'description': {
                 'type': 'string',
                 'description': 'description about how the flow works'
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['flow_yaml', 'description']
+        'required': ['flow_yaml', 'description', 'reasoning']
     }
 }
