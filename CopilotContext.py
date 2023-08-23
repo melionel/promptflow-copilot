@@ -331,11 +331,6 @@ class CopilotContext:
             os.mkdir(target_folder)
             print_info_func(f'Create flow folder:{target_folder}')
 
-        print_info_func('Dumping flow.dag.yaml')
-        with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
-            f.write(flow_yaml)
-            self.flow_yaml = flow_yaml
-
         parsed_flow_yaml = yaml.safe_load(flow_yaml)
         python_nodes_path_dict = {}
         llm_nodes_path_dict = {}
@@ -344,6 +339,13 @@ class CopilotContext:
                 python_nodes_path_dict[node['name']] = node['source']['path']
             elif node['type'] == 'llm':
                 llm_nodes_path_dict[node['name']] = node['source']['path']
+                if 'prompt' in node['inputs']:
+                    del node['inputs']['prompt']
+
+        print_info_func('Dumping flow.dag.yaml')
+        with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
+            yaml.dump(parsed_flow_yaml, f, allow_unicode=True, sort_keys=False, indent=2)
+            self.flow_yaml = yaml.dump(parsed_flow_yaml, allow_unicode=True, sort_keys=False, indent=2)
 
         print_info_func('Dumping flow.explaination.txt')
         with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
@@ -381,6 +383,7 @@ class CopilotContext:
             with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
                 f.write('\n'.join(requirement_python_packages))
 
+        print_info_func(f'finish dumping flow to folder:{self.flow_folder}')
         return self.flow_folder
 
     def read_local_file(self, path, print_info_func, reasoning=None, **kwargs):
