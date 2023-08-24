@@ -1,6 +1,6 @@
 dump_flow = {
     'name': 'dump_flow',
-    'description': 'dump the generated/converted/modified flow to local disk for user and return the path',
+    'description': 'dump the generated/converted/modified flow to a current folder in local disk for user and return the folder path',
     'parameters': {
         'type': 'object',
         'properties': {

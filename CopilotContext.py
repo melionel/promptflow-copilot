@@ -212,7 +212,7 @@ class CopilotContext:
         await self.parse_gpt_response(response, print_info_func)
 
         # clear function message if we have already got the flow
-        if self.flow_folder:
+        if self.flow_yaml:
             self._clear_function_message()
 
     async def parse_gpt_response(self, response, print_info_func):
@@ -296,10 +296,9 @@ class CopilotContext:
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
                 next_possible_function_calls = [function_calls.dump_sample_inputs, function_calls.dump_evaluation_flow]
-            elif function_name == 'python':
-                self.messages.append({"role": "function", "name": function_name, "content":"error: python unavailable"})
             else:
-                self.messages.append({"role": "system", "content":"do not try to call functions that does not exist!"})
+                logger.info(f'GPT try to call unavailable function: {function_name}')
+                self.messages.append({"role": "system", "content":"do not try to call functions that does not exist! Call the function that exists!"})
             
         if finish_reason != 'stop' and not early_stop:
             request_args_dict = self._format_request_dict(
@@ -333,14 +332,18 @@ class CopilotContext:
 
         parsed_flow_yaml = yaml.safe_load(flow_yaml)
         python_nodes_path_dict = {}
+        python_path_nodes_dict = {}
         llm_nodes_path_dict = {}
+        llm_path_nodes_dict = {}
         for node in parsed_flow_yaml['nodes']:
             if node['type'] == 'python':
                 python_nodes_path_dict[node['name']] = node['source']['path']
+                python_path_nodes_dict[node['source']['path']] = node['name']
             elif node['type'] == 'llm':
                 llm_nodes_path_dict[node['name']] = node['source']['path']
                 if 'prompt' in node['inputs']:
                     del node['inputs']['prompt']
+                llm_path_nodes_dict[node['source']['path']] = node['name']
 
         print_info_func('Dumping flow.dag.yaml')
         with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
@@ -358,8 +361,13 @@ class CopilotContext:
             for func in python_functions:
                 fo =  func if type(func) == dict else await self._smart_json_loads(func)
                 for k,v in fo.items():
-                    if k in python_nodes_path_dict:
-                        with open(f'{target_folder}\\{python_nodes_path_dict[k]}', 'w', encoding="utf-8") as f:
+                    python_file_name = None
+                    if k in python_path_nodes_dict:
+                        python_file_name = python_path_nodes_dict[k]['source']['path']
+                    elif k in python_nodes_path_dict:
+                        python_file_name = python_nodes_path_dict[k]
+                    if python_file_name:
+                        with open(f'{target_folder}\\{python_file_name}', 'w', encoding="utf-8") as f:
                             refined_codes = await self._refine_python_code(v)
                             f.write(refined_codes)
                             python_packages = await self._find_dependent_python_packages(refined_codes)
@@ -372,8 +380,13 @@ class CopilotContext:
             for prompt in prompts:
                 po = prompt if type(prompt) == dict else await self._smart_json_loads(prompt)
                 for k,v in po.items():
-                    if k in llm_nodes_path_dict:
-                        with open(f'{target_folder}\\{llm_nodes_path_dict[k]}', 'w', encoding="utf-8") as f:
+                    prompt_file_name = None
+                    if k in llm_path_nodes_dict:
+                        prompt_file_name = llm_path_nodes_dict[k]['source']['path']
+                    elif k in llm_nodes_path_dict:
+                        prompt_file_name = llm_nodes_path_dict[k]
+                    if prompt_file_name:
+                        with open(f'{target_folder}\\{prompt_file_name}', 'w', encoding="utf-8") as f:
                             f.write(v)
                     else:
                         logger.info(f'Prompt {k} is not used in the flow, skip dumping it')
