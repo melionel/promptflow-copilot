@@ -538,51 +538,51 @@ class CopilotContext:
         prediction_name = f'run.outputs.{first_output_column}'
 
         sdk_eval_sample_code = f"""
-    from promptflow import PFClient
-    import json
+from promptflow import PFClient
+import json
 
-    def main():
-        # Set flow path and run input data
-        flow = "{flow_folder}" # set the flow directory
-        data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl" # set the data file
+def main():
+    # Set flow path and run input data
+    flow = "{flow_folder}" # set the flow directory
+    data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl" # set the data file
 
-        pf = PFClient()
+    pf = PFClient()
 
-        # create a run
-        base_run = pf.run(
-            flow=flow,
-            data=data,
-            stream=True
-        )
+    # create a run
+    base_run = pf.run(
+        flow=flow,
+        data=data,
+        stream=True
+    )
 
-        # set eval flow path
-        eval_flow = "{eval_flow_folder}"
-        data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl"
+    # set eval flow path
+    eval_flow = "{eval_flow_folder}"
+    data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl"
 
-        # run the flow with exisiting run
-        eval_run = pf.run(
-            flow=eval_flow,
-            data=data,
-            run=base_run,
-            column_mapping={{"groundtruth": "${{{goundtruth_name}}}","prediction": "${{{prediction_name}}}"}},  # map the url field from the data to the url input of the flow
-        )
+    # run the flow with exisiting run
+    eval_run = pf.run(
+        flow=eval_flow,
+        data=data,
+        run=base_run,
+        column_mapping={{"groundtruth": "${{{goundtruth_name}}}","prediction": "${{{prediction_name}}}"}},  # map the url field from the data to the url input of the flow
+    )
 
-        # stream the run until it's finished
-        pf.stream(eval_run)
+    # stream the run until it's finished
+    pf.stream(eval_run)
 
-        # get the inputs/outputs details of a finished run.
-        details = pf.get_details(eval_run)
-        details.head(10)
+    # get the inputs/outputs details of a finished run.
+    details = pf.get_details(eval_run)
+    details.head(10)
 
-        # view the metrics of the eval run
-        metrics = pf.get_metrics(eval_run)
-        print(json.dumps(metrics, indent=4))
+    # view the metrics of the eval run
+    metrics = pf.get_metrics(eval_run)
+    print(json.dumps(metrics, indent=4))
 
-        # visualize both the base run and the eval run
-        pf.visualize([base_run, eval_run])
+    # visualize both the base run and the eval run
+    pf.visualize([base_run, eval_run])
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
 
     """
         with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
