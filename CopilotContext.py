@@ -49,7 +49,8 @@ class CopilotContext:
             function_calls.read_flow_from_local_file,
             function_calls.read_flow_from_local_folder,
             function_calls.dump_sample_inputs,
-            function_calls.dump_evaluation_flow
+            function_calls.dump_evaluation_flow,
+            function_calls.upsert_files
         ]
 
     def check_env(self):
@@ -191,8 +192,8 @@ class CopilotContext:
         rewritten_user_intent = await self._rewrite_user_input(content)
         potential_function_calls = self.copilot_general_function_calls
 
-        if self.flow_folder:
-            system_message = self.understand_flow_template.render(flow_yaml=self.flow_yaml, flow_description=self.flow_description)
+        if self.flow_yaml:
+            system_message = self.understand_flow_template.render(flow_directory=self.flow_folder, flow_yaml_path=os.path.join(self.flow_folder, 'flow.dag.yaml'), flow_yaml=self.flow_yaml, flow_description=self.flow_description)
             self.messages[0] = {'role':'system', 'content': system_message}
             potential_function_calls = self.copilot_general_function_calls
         elif len(self.messages) == 0:
@@ -250,7 +251,7 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     self.messages.append({"role": "system", "content": "You have read the file content, understand it first and then determine your next step."})
-                    next_possible_function_calls = [function_calls.dump_flow]
+                    next_possible_function_calls = [function_calls.dump_flow, function_calls.upsert_files]
             elif function_name == 'read_local_folder':
                 function_arguments = await self._smart_json_loads(function_call)
                 files_content = self.read_local_folder(**function_arguments, print_info_func=print_info_func)
@@ -260,7 +261,7 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     self.messages.append({"role": "system", "content": "You have read all the files in the folder, understand it first and then determine your next step."})
-                    next_possible_function_calls = [function_calls.dump_flow]
+                    next_possible_function_calls = [function_calls.dump_flow, function_calls.upsert_files]
             elif function_name == 'dump_sample_inputs':
                 function_arguments = await self._smart_json_loads(function_call)
                 sample_input_file = await self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
@@ -296,6 +297,10 @@ class CopilotContext:
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
                 next_possible_function_calls = [function_calls.dump_sample_inputs, function_calls.dump_evaluation_flow]
+            elif function_name == 'upsert_files':
+                function_arguments = await self._smart_json_loads(function_call)
+                self.upsert_files(**function_arguments, print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": ""})
             else:
                 logger.info(f'GPT try to call unavailable function: {function_name}')
                 self.messages.append({"role": "system", "content":"do not try to call functions that does not exist! Call the function that exists!"})
@@ -594,4 +599,19 @@ class CopilotContext:
         self.flow_yaml = flow_yaml
         self.flow_description = description
         print_info_func(description)
+
+    def upsert_files(self, files_name_content, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call dump_flow_definition_and_description reasoning: {reasoning}')
+
+        for upsert_files in files_name_content:
+            file_name = upsert_files['file_name']
+            file_content = upsert_files['file_content']
+            if os.path.exists(file_name):
+                logger.info(f'file {file_name} already exists, update existing file')
+            else:
+                logger.info(f'file {file_name} does not exist, create new file')
+            with open(file_name, 'w', encoding="utf-8") as f:
+                f.write(file_content)
+
     # endregion

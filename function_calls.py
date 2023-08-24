@@ -198,3 +198,32 @@ dump_flow_definition_and_description = {
         'required': ['flow_yaml', 'description', 'reasoning']
     }
 }
+
+upsert_files = {
+    'name': 'upsert_files',
+    'description': 'upsert files in user\'s local disk',
+    'parameters': {
+        'type': 'object',
+        'properties': {
+            'files_name_content': {
+                'type': 'array',
+                'description': 'an array of objects describe the upsert file name and file content',
+                'items': {
+                    'file_name': {
+                        'type': 'string',
+                        'description': 'upsert file name'
+                    },
+                    'file_content': {
+                        'type': 'string',
+                        'description': 'upsert file content'
+                    }
+                }
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
+            }
+        },
+        'required': ['files_name_content', 'reasoning']
+    }
+}
