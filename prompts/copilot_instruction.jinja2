@@ -104,9 +104,9 @@ When create flow, folow below rules:
 11. For each node that use python tool, you should also give the impemenation of the python function in json string format.
 12. For each node that uses llm tool, use natual language to tell llm what do you want clearly and in detail and treat it as the llm node's prompt. the prompt should follow jinja2 template syntax.
 13. you can reference the llm node's input with valid jinja syntax. for example, if the llm node has input named input_1, you can reference it with {{input_1}} in the prompt like this: "prompt": "system:\n you are an intelligent AI assistant.\n user:\nCovert the input text to english. Input text: {{input_1}}\n Output:"
-14. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example: {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
-15. Format all python functions in a list of dictionary, use the node's name as the key and the json string as the value.
-16. Format all llm node's prompts in a list of dictionary, use the node's name as the key and the prompt as the value.
+14. All python functions should be decorated with @tool decorator. And the tool decorator is imported from promptflow package, for example: {"name": "convert_to_dict", "content": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
+15. Format all python functions in a list of dictionary, specify the node's name and the python implementation in the dictionary
+16. Format all llm node's prompts in a list of dictionary, specify the node's name and the prompt in the dictionary
 17. list all extra python packages you used in the python functions
 18. list flow's inputs' and outputs' schema
 
@@ -114,10 +114,10 @@ The flow can be formatted into six parts: flow_yaml, explaination, python_functi
 For newly generated flow, help user to dump all the parts of the flow to user's local disk if possible. Do not need to ask user the place to save the flow, just save it to the current working directory.
 
 Pay attention:
-python_functions should be a list of dictionary, use the function's name as the key and the json string as the value.
-prompts should be a list of dictionary, use the node's name as the key and the prompt as the value.
-flow_inputs_schema should be a list of dictionary, use the input's name as the key and the schema as the value.
-flow_outputs_schema should be a list of dictionary, use the output's name as the key and the schema as the value.
+python_functions should be a list of dictionary, specify the node's name and the python implementation in the dictionary
+prompts should be a list of dictionary, specify the node's name and the prompt in the dictionary
+flow_inputs_schema should be a list of dictionary, specify the input's name and the schema in the dictionary
+flow_outputs_schema should be a list of dictionary, specify the output's name and the schema in the dictionary
 
 for example:
 flow_yaml:
@@ -129,22 +129,22 @@ at last, we use a llm tool to classify the website according to the content we f
 
 python_functions:
 [
-  {"convert_to_dict": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
-  {"prepare_examples" "from promptflow import tool\n@tool\ndef prepare_examples():\n #TODO: implement the logic of return examples \n   return []"}
-  {"fetch_text_content_from_url": "from promptflow import tool\n@tool\ndef fetch_text_content_from_url(url: str):\n    # implement the logic of fetch text content from url\n return \"content\""}
+  {"name":"convert_to_dict", "content": "import json\nfrom promptflow import tool\n\n@tool\ndef convert_to_dict(input_str: str):\n    return json.dumps(input_str)\n"}
+  {"name":"prepare_examples", "content": "from promptflow import tool\n@tool\ndef prepare_examples():\n #TODO: implement the logic of return examples \n   return []"}
+  {"name":"fetch_text_content_from_url", "content": "from promptflow import tool\n@tool\ndef fetch_text_content_from_url(url: str):\n    # implement the logic of fetch text content from url\n return \"content\""}
 ]
 
 prompts:
 [
-  {"summarize_text_content": "system:\n You are an intelligent AI assistant.\n user:\nPlease summarize the following text in one paragraph. 100 words.\nDo not add any information that is not in the text.\n\nText: {{text}}\nSummary: "},
-  {"classify_with_llm": "system:\nYour task is to classify a given url into one of the following types:\nMovie, App, Academic, Channel, Profile, PDF or None based on the text content information.\nThe classification will be based on the url, the webpage text content summary, or both. \n user:\nFor a given URL : {{url}}, and text content: {{text_content}}.\nClassify above url to complete the category and indicate evidence.\nOUTPUT:"}
+  {"name":"summarize_text_content","content": "system:\n You are an intelligent AI assistant.\n user:\nPlease summarize the following text in one paragraph. 100 words.\nDo not add any information that is not in the text.\n\nText: {{text}}\nSummary: "},
+  {"name":"classify_with_llm","content": "system:\nYour task is to classify a given url into one of the following types:\nMovie, App, Academic, Channel, Profile, PDF or None based on the text content information.\nThe classification will be based on the url, the webpage text content summary, or both. \n user:\nFor a given URL : {{url}}, and text content: {{text_content}}.\nClassify above url to complete the category and indicate evidence.\nOUTPUT:"}
 ]
 
 flow_inputs_schema:
-[{"url": {"type": "string", "description": "The url of the website to be classified."}}]
+[{"name":"url", "schema": {"type": "string", "description": "The url of the website to be classified."}}]
 
 flow_outputs_schema:
 [
-  {"category": {"type": "string", "description": "The category of the website."}},
-  {"evidence": {"type": "string", "description": "The evidence of the classification."}}
+  {"name":"category", "schema": {"type": "string", "description": "The category of the website."}},
+  {"name":"evidence", "schema": {"type": "string", "description": "The evidence of the classification."}}
 ]

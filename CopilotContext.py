@@ -361,42 +361,42 @@ class CopilotContext:
             self.flow_description = explaination
 
         requirement_python_packages = set()
-        if python_functions:
+        if python_functions and len(python_functions) > 0:
             print_info_func('Dumping python functions')
             for func in python_functions:
-                fo =  func if type(func) == dict else await self._smart_json_loads(func)
-                for k,v in fo.items():
-                    python_file_name = None
-                    if k in python_path_nodes_dict:
-                        python_file_name = python_path_nodes_dict[k]['source']['path']
-                    elif k in python_nodes_path_dict:
-                        python_file_name = python_nodes_path_dict[k]
-                    if python_file_name:
-                        with open(f'{target_folder}\\{python_file_name}', 'w', encoding="utf-8") as f:
-                            refined_codes = await self._refine_python_code(v)
-                            f.write(refined_codes)
-                            python_packages = await self._find_dependent_python_packages(refined_codes)
-                            requirement_python_packages.update(python_packages)
-                    else:
-                        logger.info(f'Function {k} is not used in the flow, skip dumping it')
+                python_node_name = func['name']
+                python_code = func['content']
+                python_file_name = None
+                if python_node_name in python_path_nodes_dict:
+                    python_file_name = python_path_nodes_dict[python_node_name]['source']['path']
+                elif python_node_name in python_nodes_path_dict:
+                    python_file_name = python_nodes_path_dict[python_node_name]
+                if python_file_name:
+                    with open(f'{target_folder}\\{python_file_name}', 'w', encoding="utf-8") as f:
+                        refined_codes = await self._refine_python_code(python_code)
+                        f.write(refined_codes)
+                        python_packages = await self._find_dependent_python_packages(refined_codes)
+                        requirement_python_packages.update(python_packages)
+                else:
+                    logger.info(f'python function for {python_node_name} is not used in the flow, skip dumping it')
 
-        if prompts:
+        if prompts and len(prompts) > 0:
             print_info_func('Dumping prompts')
             for prompt in prompts:
-                po = prompt if type(prompt) == dict else await self._smart_json_loads(prompt)
-                for k,v in po.items():
-                    prompt_file_name = None
-                    if k in llm_path_nodes_dict:
-                        prompt_file_name = llm_path_nodes_dict[k]['source']['path']
-                    elif k in llm_nodes_path_dict:
-                        prompt_file_name = llm_nodes_path_dict[k]
-                    if prompt_file_name:
-                        with open(f'{target_folder}\\{prompt_file_name}', 'w', encoding="utf-8") as f:
-                            f.write(v)
-                    else:
-                        logger.info(f'Prompt {k} is not used in the flow, skip dumping it')
+                prompt_node_name = prompt['name']
+                prompt_content = prompt['content']
+                prompt_file_name = None
+                if prompt_node_name in llm_path_nodes_dict:
+                    prompt_file_name = llm_path_nodes_dict[prompt_node_name]['source']['path']
+                elif prompt_node_name in llm_nodes_path_dict:
+                    prompt_file_name = llm_nodes_path_dict[prompt_node_name]
+                if prompt_file_name:
+                    with open(f'{target_folder}\\{prompt_file_name}', 'w', encoding="utf-8") as f:
+                        f.write(prompt_content)
+                else:
+                    logger.info(f'Prompt {prompt_node_name} is not used in the flow, skip dumping it')
 
-        if requirement_python_packages:
+        if requirement_python_packages and len(requirement_python_packages) > 0:
             print_info_func('Dumping requirements.txt')
             with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
                 f.write('\n'.join(requirement_python_packages))
@@ -519,8 +519,7 @@ class CopilotContext:
             shutil.copy(source_file_path, destination_file_path)
 
         # currently only support one output
-        flow_outputs_schema = flow_outputs_schema[0]
-        first_output_column = ''
+        first_output_column = 'flow_output'
 
         with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
             for sample_input in sample_inputs:
@@ -528,10 +527,11 @@ class CopilotContext:
                     continue
                 else:
                     sample_input = await self._smart_json_loads(sample_input) if type(sample_input) == str else sample_input
-                    flow_outputs_schema = flow_outputs_schema if type(flow_outputs_schema) == dict else await self._smart_json_loads(flow_outputs_schema)
-                    for k,v in flow_outputs_schema.items():
-                        sample_input[k] = 'expected_output'
-                    first_output_column = next(iter(flow_outputs_schema)) if flow_outputs_schema else ''
+                    if flow_outputs_schema and len(flow_outputs_schema) > 0:
+                        first_output_column = flow_outputs_schema[0]['name']
+                    for flow_output in flow_outputs_schema:
+                        output_name = flow_output['name']
+                        sample_input[output_name] = 'expected_output'
                 f.write(json.dumps(sample_input) + '\n')
 
         goundtruth_name = f'data.{first_output_column}'

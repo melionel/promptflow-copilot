@@ -16,28 +16,56 @@ dump_flow = {
                 'type': 'array',
                 'description': 'python function implementations',
                 'items': {
-                    'type': 'string'
+                    'name': {
+                        'type': 'string',
+                        'description': 'python node name'
+                    },
+                    'content': {
+                        'type': 'string',
+                        'description': 'python file content'
+                    }
                 }
             },
             'prompts': {
                 'type': 'array',
                 'description': 'prompts',
                 'items': {
-                    'type': 'string'
+                    'name': {
+                        'type': 'string',
+                        'description': 'llm node name'
+                    },
+                    'content': {
+                        'type': 'string',
+                        'description': 'prompt content'
+                    }
                 }
             },
             'flow_inputs_schema': {
                 'type': 'array',
                 'description': 'flow inputs schemas',
                 'items': {
-                    'type': 'string'
+                    'name': {
+                        'type': 'string',
+                        'description': 'input name'
+                    },
+                    'schema': {
+                        'type': 'string',
+                        'description': 'input schema'
+                    }
                 }
             },
             'flow_outputs_schema': {
                 'type': 'array',
                 'description': 'flow outputs schemas',
                 'items': {
-                    'type': 'string'
+                    'name': {
+                        'type': 'string',
+                        'description': 'output name'
+                    },
+                    'schema': {
+                        'type': 'string',
+                        'description': 'output schema'
+                    }
                 }
             },
             'reasoning': {
@@ -133,14 +161,14 @@ dump_sample_inputs = {
         'properties': {
             'sample_inputs': {
                 'type': 'array',
-                'description': 'generated sample inputs',
+                'description': 'generated sample inputs in json string format',
                 'items': {
                     'type': 'string'
                 },
+            },
             'reasoning': {
                 'type': 'string',
                 'description': 'reasoning about why this function is called'
-            }
             },
         },
         'required': ['sample_inputs', 'reasoning']
@@ -155,7 +183,7 @@ dump_evaluation_flow ={
         'properties': {
             'sample_inputs': {
                 'type': 'array',
-                'description': 'generated sample inputs',
+                'description': 'generated sample inputs in json string format',
                 'items': {
                     'type': 'string'
                 }
@@ -164,7 +192,14 @@ dump_evaluation_flow ={
                 'type': 'array',
                 'description': 'flow outputs schemas',
                 'items': {
-                    'type': 'string'
+                    'name': {
+                        'type': 'string',
+                        'description': 'output name'
+                    },
+                    'schema': {
+                        'type': 'string',
+                        'description': 'output schema'
+                    }
                 }
             },
             'reasoning': {
