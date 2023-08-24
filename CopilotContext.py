@@ -72,7 +72,9 @@ class CopilotContext:
 
     def reset(self):
         self.messages = []
-        self.flow_folder = None    
+        self.flow_folder = None
+        self.flow_yaml = None
+        self.flow_description = None    
 
     def _format_request_dict(self, messages=[], functions=None, function_call=None):
         request_args_dict = {
