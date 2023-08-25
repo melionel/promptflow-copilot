@@ -38,6 +38,8 @@ class CopilotContext:
         self.summarize_flow_name_template = jinja_env.get_template('prompts/summarize_flow_name.jinja2')
         self.understand_flow_template = jinja_env.get_template('prompts/understand_flow_instruction.jinja2')
         self.json_string_fixer_template = jinja_env.get_template('prompts/json_string_fixer.jinja2')
+        self.yaml_string_fixer_template = jinja_env.get_template('prompts/yaml_string_fixer.jinja2')
+        self.function_call_instruction_template = jinja_env.get_template('prompts/function_call_instruction.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = []
@@ -50,7 +52,7 @@ class CopilotContext:
             function_calls.read_flow_from_local_folder,
             function_calls.dump_sample_inputs,
             function_calls.dump_evaluation_flow,
-            function_calls.upsert_files
+            function_calls.upsert_flow_files
         ]
 
     def check_env(self):
@@ -95,6 +97,24 @@ class CopilotContext:
             request_args_dict['model'] = self.openai_model
 
         return request_args_dict 
+
+    async def _safe_load_flow_yaml(self, yaml_str):
+        try:
+            parsed_flow_yaml = await self._smart_yaml_loads(yaml_str)
+            for node in parsed_flow_yaml['nodes']:
+                if node['type'] == 'llm':
+                    if 'prompt' in node['inputs']:
+                        del node['inputs']['prompt']
+            if 'node_variants' in parsed_flow_yaml:
+                for _, v in parsed_flow_yaml['node_variants'].items():
+                    for _, variant in v['variants']:
+                        if 'prompt' in variant['node']['inputs']:
+                            del variant['node']['inputs']['prompt']
+            self.flow_yaml = yaml.dump(parsed_flow_yaml, allow_unicode=True, sort_keys=False, indent=2)
+            return parsed_flow_yaml
+        except Exception as ex:
+            logger.error(ex)
+            raise ex
 
     async def _rewrite_user_input(self, user_input):
         # construct conversation message, only keep the last four messages for user and assistant
@@ -162,7 +182,7 @@ class CopilotContext:
         message = getattr(response.choices[0].message, "content", "")
         return message
 
-    async def _fix_json_string(self, json_string, error, max_retry=3):
+    async def _fix_json_string_and_loads(self, json_string, error, max_retry=3):
         try:
             fix_json_string_instruction = self.json_string_fixer_template.render(original_string=json_string, error_message=error)
             chat_message = [
@@ -171,13 +191,34 @@ class CopilotContext:
             request_args_dict = self._format_request_dict(messages=chat_message)
             response = await openai.ChatCompletion.acreate(**request_args_dict)
             message = getattr(response.choices[0].message, "content", "")
-            json.loads(message)
-            return message
+            return json.loads(message)
         except JSONDecodeError as ex:
             logger.error(f'Failed to fix json string {json_string} with error {error}')
             if max_retry > 0 and message != json_string:
-                return await self._fix_json_string(message, str(ex), max_retry=max_retry-1)
+                return await self._fix_json_string_and_loads(message, str(ex), max_retry=max_retry-1)
             raise ex
+
+    async def _fix_yaml_string_and_loads(self, yaml_string, error, max_retry=3):
+        try:
+            fix_yaml_string_instruction = self.yaml_string_fixer_template.render(original_string=yaml_string, error_message=error)
+            chat_message = [
+                {'role':'system', 'content': fix_yaml_string_instruction},
+            ]
+            request_args_dict = self._format_request_dict(messages=chat_message)
+            response = await openai.ChatCompletion.acreate(**request_args_dict)
+            message = getattr(response.choices[0].message, "content", "")
+            return yaml.safe_load(message)
+        except yaml.MarkedYAMLError as ex:
+            logger.error(f'Failed to fix yaml string {yaml_string} with error {error}')
+            if max_retry > 0 and message != yaml_string:
+                return await self._fix_yaml_string_and_loads(message, str(ex), max_retry=max_retry-1)
+            raise ex
+        
+    async def _smart_yaml_loads(self, yaml_string):
+        try:
+            return yaml.safe_load(yaml_string)
+        except yaml.MarkedYAMLError as ex:
+            return await self._fix_yaml_string_and_loads(yaml_string, str(ex))
 
     async def _smart_json_loads(self, json_string):
         try:
@@ -187,8 +228,9 @@ class CopilotContext:
             updated_function_call = re.sub(pattern, r'\\n', str(json_string))
             if updated_function_call == json_string:
                 logger.error(f'Failed to load json string {json_string}')
-                updated_function_call = await self._fix_json_string(json_string, str(ex))
-            return await self._smart_json_loads(updated_function_call)
+                return await self._fix_json_string_and_loads(json_string, str(ex))
+            else:
+                return await self._smart_json_loads(updated_function_call)
         
     async def ask_gpt_async(self, content, print_info_func):
         rewritten_user_intent = await self._rewrite_user_input(content)
@@ -208,6 +250,8 @@ class CopilotContext:
                 function_calls.read_local_folder]
 
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
+        self.messages.append({'role':'system', 'content': self.function_call_instruction_template.render()})
+
         request_args_dict = self._format_request_dict(
             messages=self.messages, functions=potential_function_calls, function_call='auto')
         
@@ -217,6 +261,9 @@ class CopilotContext:
         # clear function message if we have already got the flow
         if self.flow_yaml:
             self._clear_function_message()
+        
+        # clear function call messages since we will append it every time
+        self._clear_system_message()
 
     async def parse_gpt_response(self, response, print_info_func):
         response_ms = response.response_ms
@@ -228,6 +275,7 @@ class CopilotContext:
         finish_reason = response.choices[0].finish_reason
         early_stop = False
         next_possible_function_calls = None
+        function_call_choice = 'auto'
 
         print_info_func(f'Get response from ChatGPT in {response_ms} ms!')
         print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
@@ -253,7 +301,7 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     self.messages.append({"role": "system", "content": "You have read the file content, understand it first and then determine your next step."})
-                    next_possible_function_calls = [function_calls.dump_flow, function_calls.upsert_files]
+                    next_possible_function_calls = [function_calls.dump_flow, function_calls.upsert_flow_files]
             elif function_name == 'read_local_folder':
                 function_arguments = await self._smart_json_loads(function_call)
                 files_content = self.read_local_folder(**function_arguments, print_info_func=print_info_func)
@@ -263,7 +311,7 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     self.messages.append({"role": "system", "content": "You have read all the files in the folder, understand it first and then determine your next step."})
-                    next_possible_function_calls = [function_calls.dump_flow, function_calls.upsert_files]
+                    next_possible_function_calls = [function_calls.dump_flow, function_calls.upsert_flow_files]
             elif function_name == 'dump_sample_inputs':
                 function_arguments = await self._smart_json_loads(function_call)
                 sample_input_file = await self.dump_sample_inputs(**function_arguments, target_folder=self.flow_folder, print_info_func=print_info_func)
@@ -284,6 +332,7 @@ class CopilotContext:
                     self.flow_folder = os.path.dirname(function_arguments['path'])
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
+                    function_call_choice = {'name': 'dump_flow_definition_and_description'}
             elif function_name == 'read_flow_from_local_folder':
                 function_arguments = await self._smart_json_loads(function_call)
                 self.flow_folder = function_arguments['path']
@@ -294,14 +343,15 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
+                    function_call_choice = {'name': 'dump_flow_definition_and_description'}
             elif function_name == 'dump_flow_definition_and_description':
                 function_arguments = await self._smart_json_loads(function_call)
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
-                next_possible_function_calls = [function_calls.dump_sample_inputs, function_calls.dump_evaluation_flow]
-            elif function_name == 'upsert_files':
+                next_possible_function_calls = [function_calls.dump_sample_inputs, function_calls.dump_evaluation_flow, function_calls.upsert_flow_files]
+            elif function_name == 'upsert_flow_files':
                 function_arguments = await self._smart_json_loads(function_call)
-                self.upsert_files(**function_arguments, print_info_func=print_info_func)
+                await self.upsert_flow_files(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
             else:
                 logger.info(f'GPT try to call unavailable function: {function_name}')
@@ -309,7 +359,7 @@ class CopilotContext:
             
         if finish_reason != 'stop' and not early_stop:
             request_args_dict = self._format_request_dict(
-                messages=self.messages, functions=next_possible_function_calls, function_call='auto')
+                messages=self.messages, functions=next_possible_function_calls, function_call=function_call_choice)
             new_response = await openai.ChatCompletion.acreate(**request_args_dict)
             await self.parse_gpt_response(new_response, print_info_func)    
 
@@ -321,14 +371,22 @@ class CopilotContext:
             if message['role'] == 'function' and message['name'] in ['read_local_file', 'read_local_folder', 'read_flow_from_local_file', 'read_flow_from_local_folder']:
                 self.messages.remove(message)
 
+    def _clear_system_message(self):
+        '''
+        clear some system message from messages to reduce chat history size
+        '''
+        for message in self.messages:
+            if message['role'] == 'system' and message['content'] == self.function_call_instruction_template.render():
+                self.messages.remove(message)
+
     # region functions
-    async def dump_flow(self, print_info_func, flow_yaml, explaination, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None, reasoning=None, **kwargs):
+    async def dump_flow(self, print_info_func, flow_yaml, explaination=None, python_functions=None, prompts=None, flow_inputs_schema=None, flow_outputs_schema=None, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call dump_flow reasoning: {reasoning}')
 
         if not self.flow_folder:
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            flow_name = await self._summarize_flow_name(explaination)
+            flow_name = await self._summarize_flow_name(explaination) if explaination else 'flow_generated'
             self.flow_folder = f'flow_{flow_name}_{timestamp}'
 
         target_folder = self.flow_folder
@@ -337,7 +395,7 @@ class CopilotContext:
             os.mkdir(target_folder)
             print_info_func(f'Create flow folder:{target_folder}')
 
-        parsed_flow_yaml = yaml.safe_load(flow_yaml)
+        parsed_flow_yaml = await self._safe_load_flow_yaml(flow_yaml)
         python_nodes_path_dict = {}
         python_path_nodes_dict = {}
         llm_nodes_path_dict = {}
@@ -348,19 +406,17 @@ class CopilotContext:
                 python_path_nodes_dict[node['source']['path']] = node['name']
             elif node['type'] == 'llm':
                 llm_nodes_path_dict[node['name']] = node['source']['path']
-                if 'prompt' in node['inputs']:
-                    del node['inputs']['prompt']
                 llm_path_nodes_dict[node['source']['path']] = node['name']
 
         print_info_func('Dumping flow.dag.yaml')
         with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
             yaml.dump(parsed_flow_yaml, f, allow_unicode=True, sort_keys=False, indent=2)
-            self.flow_yaml = yaml.dump(parsed_flow_yaml, allow_unicode=True, sort_keys=False, indent=2)
 
-        print_info_func('Dumping flow.explaination.txt')
-        with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
-            f.write(explaination)
-            self.flow_description = explaination
+        if explaination:
+            print_info_func('Dumping flow.explaination.txt')
+            with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
+                f.write(explaination)
+                self.flow_description = explaination
 
         requirement_python_packages = set()
         if python_functions and len(python_functions) > 0:
@@ -602,18 +658,29 @@ if __name__ == "__main__":
         self.flow_description = description
         print_info_func(description)
 
-    def upsert_files(self, files_name_content, print_info_func, reasoning=None, **kwargs):
+    async def upsert_flow_files(self, files_name_content, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call dump_flow_definition_and_description reasoning: {reasoning}')
 
-        for upsert_files in files_name_content:
-            file_name = upsert_files['file_name']
-            file_content = upsert_files['file_content']
+        for upsert_flow_files in files_name_content:
+            file_name = upsert_flow_files.get('name') or upsert_flow_files.get('file_name')
+            if file_name is None:
+                file_name = upsert_flow_files['file_name'] if 'file_name' in upsert_flow_files else None
+            if file_name is None:
+                logger.info(f'file name is not specified, skip.')
+                break
+            if self.flow_folder not in file_name:
+                file_name = os.path.join(self.flow_folder, file_name)
+            file_content = upsert_flow_files.get('content') or upsert_flow_files.get('file_content')
             if os.path.exists(file_name):
                 logger.info(f'file {file_name} already exists, update existing file')
             else:
                 logger.info(f'file {file_name} does not exist, create new file')
             with open(file_name, 'w', encoding="utf-8") as f:
                 f.write(file_content)
+            
+            if file_name.endswith('dag.yaml'):
+                logger.info('update flow yaml')
+                await self._safe_load_flow_yaml(file_content)
 
     # endregion

@@ -1,6 +1,6 @@
 dump_flow = {
     'name': 'dump_flow',
-    'description': 'dump the generated/converted/modified flow to a current folder in local disk for user and return the folder path',
+    'description': 'dump the newly generated or converted flow to a current folder in local disk for user and return the folder path',
     'parameters': {
         'type': 'object',
         'properties': {
@@ -234,9 +234,9 @@ dump_flow_definition_and_description = {
     }
 }
 
-upsert_files = {
-    'name': 'upsert_files',
-    'description': 'upsert files in user\'s local disk',
+upsert_flow_files = {
+    'name': 'upsert_flow_files',
+    'description': 'upsert files in user\'s local flow directory, including flow yaml, flow description, python files and jinja files',
     'parameters': {
         'type': 'object',
         'properties': {
