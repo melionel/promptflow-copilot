@@ -26,6 +26,9 @@ class CopilotContext:
         self.openai_key = os.environ.get("OPENAI_API_KEY")
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
+        self.total_tokens = 0
+        self.prompt_tokens = 0
+
         self.flow_folder = None
         self.flow_description = None
         self.flow_yaml = None
@@ -76,7 +79,9 @@ class CopilotContext:
         self.messages = []
         self.flow_folder = None
         self.flow_yaml = None
-        self.flow_description = None    
+        self.flow_description = None
+        self.total_tokens = 0
+        self.prompt_tokens = 0    
 
     def _format_request_dict(self, messages=[], functions=None, function_call=None):
         request_args_dict = {
@@ -277,8 +282,10 @@ class CopilotContext:
         next_possible_function_calls = None
         function_call_choice = 'auto'
 
-        print_info_func(f'Get response from ChatGPT in {response_ms} ms!')
-        print_info_func(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
+        logger.info(f'Get response from ChatGPT in {response_ms} ms!')
+        logger.info(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
+        self.total_tokens = total_tokens
+        self.prompt_tokens = prompt_tokens
 
         if message:
             self.messages.append({'role':response.choices[0].message.role, 'content':message})
@@ -393,7 +400,7 @@ class CopilotContext:
 
         if not os.path.exists(target_folder):
             os.mkdir(target_folder)
-            print_info_func(f'Create flow folder:{target_folder}')
+            logger.info(f'Create flow folder:{target_folder}')
 
         parsed_flow_yaml = await self._safe_load_flow_yaml(flow_yaml)
         python_nodes_path_dict = {}
@@ -408,19 +415,19 @@ class CopilotContext:
                 llm_nodes_path_dict[node['name']] = node['source']['path']
                 llm_path_nodes_dict[node['source']['path']] = node['name']
 
-        print_info_func('Dumping flow.dag.yaml')
+        logger.info('Dumping flow.dag.yaml')
         with open(f'{target_folder}\\flow.dag.yaml', 'w', encoding="utf-8") as f:
             yaml.dump(parsed_flow_yaml, f, allow_unicode=True, sort_keys=False, indent=2)
 
         if explaination:
-            print_info_func('Dumping flow.explaination.txt')
+            logger.info('Dumping flow.explaination.txt')
             with open(f'{target_folder}\\flow.explaination.txt', 'w', encoding="utf-8") as f:
                 f.write(explaination)
                 self.flow_description = explaination
 
         requirement_python_packages = set()
         if python_functions and len(python_functions) > 0:
-            print_info_func('Dumping python functions')
+            logger.info('Dumping python functions')
             for func in python_functions:
                 python_node_name = func['name']
                 python_code = func['content']
@@ -439,7 +446,7 @@ class CopilotContext:
                     logger.info(f'python function for {python_node_name} is not used in the flow, skip dumping it')
 
         if prompts and len(prompts) > 0:
-            print_info_func('Dumping prompts')
+            logger.info('Dumping prompts')
             for prompt in prompts:
                 prompt_node_name = prompt['name']
                 prompt_content = prompt['content']
@@ -455,7 +462,7 @@ class CopilotContext:
                     logger.info(f'Prompt {prompt_node_name} is not used in the flow, skip dumping it')
 
         if requirement_python_packages and len(requirement_python_packages) > 0:
-            print_info_func('Dumping requirements.txt')
+            logger.info('Dumping requirements.txt')
             with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
                 f.write('\n'.join(requirement_python_packages))
 
@@ -470,14 +477,14 @@ class CopilotContext:
             return self.read_local_folder(path, print_info_func)
 
         if not os.path.exists(path):
-            print_info_func(f'{path} does not exists')
+            logger.info(f'{path} does not exists')
             return
         else:
-            print_info_func(f'read content from file:{path}')
+            logger.info(f'read content from file:{path}')
             with open(path, 'r', encoding="utf-8") as f:
                 return f.read()
 
-    def read_local_folder(self, path, print_info_func, included_file_types=['.ipynb', '.py'], reasoning=None, **kwargs):
+    def read_local_folder(self, path, print_info_func, included_file_types=['.py'], reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call read_local_folder reasoning: {reasoning}')
 
@@ -485,10 +492,10 @@ class CopilotContext:
             return self.read_local_file(path, print_info_func)
 
         if not os.path.exists(path):
-            print_info_func(f'{path} does not exists')
+            logger.info(f'{path} does not exists')
             return
         else:
-            print_info_func(f'read content from folder:{path}')
+            logger.info(f'read content from folder:{path}')
             file_contents_dict = {}
 
             for root, _, files in os.walk(path):
@@ -514,7 +521,7 @@ class CopilotContext:
 
         if os.path.isfile(path):
             return self.read_local_file(path, print_info_func)
-        print_info_func(f'read existing flow from folder:{path}')
+        logger.info(f'read existing flow from folder:{path}')
         self.flow_folder = path
         return self.read_local_folder(path, print_info_func, included_file_types=['.yaml'])
 
@@ -524,7 +531,7 @@ class CopilotContext:
 
         if os.path.isdir(path):
             return self.read_flow_from_local_folder(path, print_info_func)
-        print_info_func(f'read existing flow from file:{path}')
+        logger.info(f'read existing flow from file:{path}')
         self.flow_folder = os.path.dirname(path)
         return self.read_local_file(path, print_info_func)
 
@@ -532,8 +539,8 @@ class CopilotContext:
         if reasoning is not None:
             logger.info(f'function call dump_sample_inputs reasoning: {reasoning}')
 
-        if not os.path.exists(target_folder):
-            print_info_func(f'Before generate the sample inputs, please generate the flow first')
+        if not target_folder or not os.path.exists(target_folder):
+            print_info_func(f'Before generate the sample inputs, please generate or provide the flow first')
             return
 
         sample_inputs_file = f'{target_folder}\\flow.sample_inputs.jsonl'
@@ -556,18 +563,18 @@ class CopilotContext:
         if reasoning is not None:
             logger.info(f'function call dump_evaluation_flow reasoning: {reasoning}')
 
-        if not os.path.exists(flow_folder):
-            print_info_func(f'Before generate the evaluation flow, please generate the flow first')
+        if not flow_folder or not os.path.exists(flow_folder):
+            print_info_func(f'Before generate the evaluation flow, please generate or provide the flow first')
             return
 
         if not os.path.exists(eval_flow_folder):
             os.mkdir(eval_flow_folder)
-            print_info_func(f'Create flow folder:{eval_flow_folder}')
+            logger.info(f'Create flow folder:{eval_flow_folder}')
 
         if sample_inputs is None:
-            print_info_func('No sample inputs generated, you may need to generate the sample inputs manually')
+            logger.info('No sample inputs generated, you may need to generate the sample inputs manually')
 
-        print_info_func('Dumping evalutaion flow...')
+        logger.info('Dumping evalutaion flow...')
         evaluation_flow_template_folder = '.\evaluation_template'
         file_list = os.listdir(evaluation_flow_template_folder)
         import shutil
@@ -646,7 +653,7 @@ if __name__ == "__main__":
         with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
             f.write(sdk_eval_sample_code)
 
-        print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
+        logger.info(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
 
         return eval_flow_folder
 

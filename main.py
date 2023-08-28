@@ -34,7 +34,7 @@ async def get_response_async():
         handle_exception(trace_back)
     finally:
         chat_box.yview_moveto(1.0)
-        update_label.configure(text="Waiting for user's input...")
+        update_label.configure(text=f"Waiting for user's input...\t token cost:{copilot_context.total_tokens}\t prompt tokens:{copilot_context.prompt_tokens}")
         send_button.configure(state=tk.NORMAL)
         reset_button.configure(state=tk.NORMAL)
         app.update()
@@ -44,7 +44,7 @@ def start_over():
         chat_box.configure(state=tk.NORMAL)
         chat_box.delete(1.0, tk.END)
         add_image_to_chat()
-        add_to_chat("Okay, let's satrt over. Pleae tell me your goal you want to accomplish using promptflow")
+        add_to_chat("Okay, let's satrt over. What can I do for you?")
         chat_box.yview_moveto(1.0)
         copilot_context.reset()
         chat_box.configure(state=tk.DISABLED)
