@@ -244,7 +244,10 @@ class CopilotContext:
         if self.flow_yaml:
             system_message = self.understand_flow_template.render(flow_directory=self.flow_folder, flow_yaml_path=os.path.join(self.flow_folder, 'flow.dag.yaml'), flow_yaml=self.flow_yaml, flow_description=self.flow_description)
             self.messages[0] = {'role':'system', 'content': system_message}
-            potential_function_calls = self.copilot_general_function_calls
+            potential_function_calls = [
+                function_calls.dump_sample_inputs, 
+                function_calls.dump_evaluation_flow, 
+                function_calls.upsert_flow_files]
         elif len(self.messages) == 0:
             self.messages.append({'role':'system', 'content':self.system_instruction})
             potential_function_calls = [
@@ -328,6 +331,13 @@ class CopilotContext:
                 function_arguments = await self._smart_json_loads(function_call)
                 evaluation_flow_folder = await self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": f"{evaluation_flow_folder}"})
+                if evaluation_flow_folder:
+                    next_possible_function_calls = [function_calls.dump_evaluation_inputs]
+                    function_call_choice = {'name':'dump_evaluation_inputs'}
+            elif function_name == 'dump_evaluation_inputs':
+                function_arguments = await self._smart_json_loads(function_call)
+                evaluation_input_file = await self.dump_evaluation_inputs(**function_arguments, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
+                self.messages.append({"role": "function", "name": function_name, "content": f"{evaluation_input_file}"})
                 early_stop = True
             elif function_name == 'read_flow_from_local_file':
                 function_arguments = await self._smart_json_loads(function_call)
@@ -339,6 +349,7 @@ class CopilotContext:
                     self.flow_folder = os.path.dirname(function_arguments['path'])
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
+                    function_call_choice = {'name':'dump_flow_definition_and_description'}
             elif function_name == 'read_flow_from_local_folder':
                 function_arguments = await self._smart_json_loads(function_call)
                 self.flow_folder = function_arguments['path']
@@ -349,6 +360,7 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
+                    function_call_choice = {'name':'dump_flow_definition_and_description'}
             elif function_name == 'dump_flow_definition_and_description':
                 function_arguments = await self._smart_json_loads(function_call)
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
@@ -557,7 +569,23 @@ class CopilotContext:
         
         return sample_inputs_file
 
-    async def dump_evaluation_flow(self, sample_inputs, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, reasoning=None, **kwargs):
+    async def dump_evaluation_inputs(self, evaluation_inputs, eval_flow_folder, flow_outputs_schema, print_info_func, reasoning=None, **kwargs):
+        if reasoning is not None:
+            logger.info(f'function call dump_evaluation_inputs reasoning: {reasoning}')
+
+        with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+            for sample_input in evaluation_inputs:
+                if sample_input is None:
+                    continue
+                else:
+                    sample_input = await self._smart_json_loads(sample_input) if type(sample_input) == str else sample_input
+                    for flow_output in flow_outputs_schema:
+                        output_name = flow_output['name']
+                        sample_input[output_name] = '<expected_output>'
+                f.write(json.dumps(sample_input) + '\n')
+        
+
+    async def dump_evaluation_flow(self, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call dump_evaluation_flow reasoning: {reasoning}')
 
@@ -568,9 +596,6 @@ class CopilotContext:
         if not os.path.exists(eval_flow_folder):
             os.mkdir(eval_flow_folder)
             logger.info(f'Create flow folder:{eval_flow_folder}')
-
-        if sample_inputs is None:
-            logger.info('No sample inputs generated, you may need to generate the sample inputs manually')
 
         logger.info('Dumping evalutaion flow...')
         evaluation_flow_template_folder = '.\evaluation_template'
@@ -583,19 +608,8 @@ class CopilotContext:
 
         # currently only support one output
         first_output_column = 'flow_output'
-
-        with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
-            for sample_input in sample_inputs:
-                if sample_input is None:
-                    continue
-                else:
-                    sample_input = await self._smart_json_loads(sample_input) if type(sample_input) == str else sample_input
-                    if flow_outputs_schema and len(flow_outputs_schema) > 0:
-                        first_output_column = flow_outputs_schema[0]['name']
-                    for flow_output in flow_outputs_schema:
-                        output_name = flow_output['name']
-                        sample_input[output_name] = 'expected_output'
-                f.write(json.dumps(sample_input) + '\n')
+        if flow_outputs_schema and len(flow_outputs_schema) > 0:
+            first_output_column = flow_outputs_schema[0]['name']
 
         goundtruth_name = f'data.{first_output_column}'
         prediction_name = f'run.outputs.{first_output_column}'
@@ -651,7 +665,7 @@ if __name__ == "__main__":
         with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
             f.write(sdk_eval_sample_code)
 
-        logger.info(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
+        print_info_func(f'Dumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
 
         return eval_flow_folder
 

@@ -181,11 +181,18 @@ dump_evaluation_flow ={
     'parameters': {
         'type': 'object',
         'properties': {
-            'sample_inputs': {
+            'flow_inputs_schema': {
                 'type': 'array',
-                'description': 'generated sample inputs in json string format',
+                'description': 'flow inputs schemas',
                 'items': {
-                    'type': 'string'
+                    'name': {
+                        'type': 'string',
+                        'description': 'input name'
+                    },
+                    'schema': {
+                        'type': 'string',
+                        'description': 'input schema'
+                    }
                 }
             },
             'flow_outputs_schema': {
@@ -207,7 +214,57 @@ dump_evaluation_flow ={
                 'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['sample_inputs', 'flow_outputs_schema', 'reasoning']
+        'required': ['evaluation_inputs', 'flow_inputs_schema', 'flow_outputs_schema', 'reasoning']
+    }
+}
+
+dump_evaluation_inputs = {
+    'name': 'dump_evaluation_inputs',
+    'description': 'generate evaluation inputs for the flow and dump the generated inputs into local file for user and return the file path',
+    'parameters': {
+        'type': 'object',
+        'properties': {
+            'flow_inputs_schema': {
+                'type': 'array',
+                'description': 'flow inputs schemas',
+                'items': {
+                    'name': {
+                        'type': 'string',
+                        'description': 'input name'
+                    },
+                    'schema': {
+                        'type': 'string',
+                        'description': 'input schema'
+                    }
+                }
+            },
+            'flow_outputs_schema': {
+                'type': 'array',
+                'description': 'flow outputs schemas',
+                'items': {
+                    'name': {
+                        'type': 'string',
+                        'description': 'output name'
+                    },
+                    'schema': {
+                        'type': 'string',
+                        'description': 'output schema'
+                    }
+                }
+            },
+            'evaluation_inputs': {
+                'type': 'array',
+                'description': 'generated evaluation flow input data in json string format',
+                'items': {
+                    'type': 'string'
+                },
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called'
+            },
+        },
+        'required': ['flow_inputs_schema', 'flow_outputs_schema', 'evaluation_inputs', 'reasoning']
     }
 }
 
