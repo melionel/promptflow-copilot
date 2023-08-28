@@ -339,7 +339,6 @@ class CopilotContext:
                     self.flow_folder = os.path.dirname(function_arguments['path'])
                     self.messages.append({"role": "function", "name": function_name, "content":file_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
-                    function_call_choice = {'name': 'dump_flow_definition_and_description'}
             elif function_name == 'read_flow_from_local_folder':
                 function_arguments = await self._smart_json_loads(function_call)
                 self.flow_folder = function_arguments['path']
@@ -350,7 +349,6 @@ class CopilotContext:
                 else:
                     self.messages.append({"role": "function", "name": function_name, "content":files_content})
                     next_possible_function_calls = [function_calls.dump_flow_definition_and_description]
-                    function_call_choice = {'name': 'dump_flow_definition_and_description'}
             elif function_name == 'dump_flow_definition_and_description':
                 function_arguments = await self._smart_json_loads(function_call)
                 self.dump_flow_definition_and_description(**function_arguments, print_info_func=print_info_func)
