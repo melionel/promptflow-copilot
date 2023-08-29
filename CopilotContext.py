@@ -106,14 +106,15 @@ class CopilotContext:
     async def _safe_load_flow_yaml(self, yaml_str):
         try:
             parsed_flow_yaml = await self._smart_yaml_loads(yaml_str)
-            for node in parsed_flow_yaml['nodes']:
-                if node['type'] == 'llm':
-                    if 'prompt' in node['inputs']:
-                        del node['inputs']['prompt']
+            if 'nodes' in parsed_flow_yaml:
+                for node in parsed_flow_yaml['nodes']:
+                    if node['type'] == 'llm':
+                        if 'inputs' in node and 'prompt' in node['inputs']:
+                            del node['inputs']['prompt']
             if 'node_variants' in parsed_flow_yaml:
                 for _, v in parsed_flow_yaml['node_variants'].items():
-                    for _, variant in v['variants']:
-                        if 'prompt' in variant['node']['inputs']:
+                    for _, variant in v['variants'].items():
+                        if 'inputs' in variant['node'] and 'prompt' in variant['node']['inputs']:
                             del variant['node']['inputs']['prompt']
             self.flow_yaml = yaml.dump(parsed_flow_yaml, allow_unicode=True, sort_keys=False, indent=2)
             return parsed_flow_yaml
@@ -258,7 +259,7 @@ class CopilotContext:
                 function_calls.read_local_folder]
 
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
-        self.messages.append({'role':'system', 'content': self.function_call_instruction_template.render()})
+        self.messages.append({'role':'system', 'content': self.function_call_instruction_template.render(functions=','.join([f['name'] for f in potential_function_calls]))})
 
         request_args_dict = self._format_request_dict(
             messages=self.messages, functions=potential_function_calls, function_call='auto')
@@ -479,12 +480,13 @@ class CopilotContext:
         print_info_func(f'finish dumping flow to folder:{self.flow_folder}')
         return self.flow_folder
 
-    def read_local_file(self, path, print_info_func, reasoning=None, **kwargs):
+    def read_local_file(self, print_info_func, path=None, file_path=None, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call read_local_file reasoning: {reasoning}')
 
+        path = path if path else file_path
         if os.path.isdir(path):
-            return self.read_local_folder(path, print_info_func)
+            return self.read_local_folder(path=path, print_info_func=print_info_func)
 
         if not os.path.exists(path):
             logger.info(f'{path} does not exists')
@@ -494,12 +496,13 @@ class CopilotContext:
             with open(path, 'r', encoding="utf-8") as f:
                 return f.read()
 
-    def read_local_folder(self, path, print_info_func, included_file_types=['.py'], reasoning=None, **kwargs):
+    def read_local_folder(self, print_info_func, path=None, file_path=None, included_file_types=['.py'], reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call read_local_folder reasoning: {reasoning}')
 
+        path = path if path else file_path
         if os.path.isfile(path):
-            return self.read_local_file(path, print_info_func)
+            return self.read_local_file(path=path, print_info_func=print_info_func)
 
         if not os.path.exists(path):
             logger.info(f'{path} does not exists')
@@ -530,10 +533,10 @@ class CopilotContext:
             logger.info(f'function call read_flow_from_local_folder reasoning: {reasoning}')
 
         if os.path.isfile(path):
-            return self.read_local_file(path, print_info_func)
+            return self.read_local_file(path=path, print_info_func=print_info_func)
         logger.info(f'read existing flow from folder:{path}')
         self.flow_folder = path
-        return self.read_local_folder(path, print_info_func, included_file_types=['.yaml'])
+        return self.read_local_folder(path=path, print_info_func=print_info_func, included_file_types=['.yaml'])
 
     def read_flow_from_local_file(self, path, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
@@ -543,7 +546,7 @@ class CopilotContext:
             return self.read_flow_from_local_folder(path, print_info_func)
         logger.info(f'read existing flow from file:{path}')
         self.flow_folder = os.path.dirname(path)
-        return self.read_local_file(path, print_info_func)
+        return self.read_local_file(path=path, print_info_func=print_info_func)
 
     async def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
@@ -679,7 +682,7 @@ if __name__ == "__main__":
 
     async def upsert_flow_files(self, files_name_content, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
-            logger.info(f'function call dump_flow_definition_and_description reasoning: {reasoning}')
+            logger.info(f'function call upsert_flow_files reasoning: {reasoning}')
 
         for upsert_flow_files in files_name_content:
             file_name = upsert_flow_files.get('name') or upsert_flow_files.get('file_name')
