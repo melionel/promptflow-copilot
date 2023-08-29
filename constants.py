@@ -1,10 +1,17 @@
 # Copilot Message
-welcome_message = """Welcome to use promptflow copilot! I can help you to create a promptflow to accomplish your goal.
-Although the auto generated flow might be not right or lack of some implementation details, it should be a good start to develop your own flow. Enjoy!
-Before start, remember to set pfcopilot.env file."""
+welcome_message = """Welcome to use promptflow copilot!
+I am powered by ChatGPT and aimed to help you for below tasks:
+1. Generate a new flow based on the goal you provided.
+2. Convert your existing python program to a flow.
+3. Understand your existing flow and provide suggestions.
+4. Generate bulktest input data for your flow.
+5. Generate evaluation flow for your flow.
+6. Add variant for the node in your flow.
+7. Answer flow related questions.
+"""
 checking_environment_message = "Checking your environment..."
-environment_ready_message = "You are all set, let's start! Pleae tell me your goal you want to accomplish using promptflow."
-environment_not_ready_message = "Your environment is not ready, please configure your environment and restart the window."
+environment_ready_message = "You are all set, let's start! How can I help you?"
+environment_not_ready_message = "Your environment is not ready, please configure your environment in pfcopilot.env file and restart the window."
 entry_default_message = "Send a message..."
 
 # User/Copilot Text and Color

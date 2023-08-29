@@ -696,8 +696,10 @@ if __name__ == "__main__":
             file_content = upsert_flow_files.get('content') or upsert_flow_files.get('file_content')
             if os.path.exists(file_name):
                 logger.info(f'file {file_name} already exists, update existing file')
+                print_info_func(f'update existing file {file_name}')
             else:
                 logger.info(f'file {file_name} does not exist, create new file')
+                print_info_func(f'create new file {file_name}')
             with open(file_name, 'w', encoding="utf-8") as f:
                 f.write(file_content)
             
