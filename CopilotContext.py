@@ -26,8 +26,10 @@ class CopilotContext:
         self.openai_key = os.environ.get("OPENAI_API_KEY")
         self.openai_model = os.environ.get("OPENAI_MODEL")
 
-        self.total_tokens = 0
+        self.completion_tokens = 0
         self.prompt_tokens = 0
+        self.last_completion_tokens = 0
+        self.last_prompt_tokens = 0
 
         self.flow_folder = None
         self.flow_description = None
@@ -58,6 +60,10 @@ class CopilotContext:
             function_calls.upsert_flow_files
         ]
 
+    @property
+    def total_money_cost(self):
+        return self.prompt_tokens * 0.000003 + self.completion_tokens * 0.00000004
+
     def check_env(self):
         if self.use_aoai:
             if not self.aoai_key or not self.aoai_deployment or not self.aoai_api_base:
@@ -80,8 +86,10 @@ class CopilotContext:
         self.flow_folder = None
         self.flow_yaml = None
         self.flow_description = None
-        self.total_tokens = 0
-        self.prompt_tokens = 0    
+        self.completion_tokens = 0
+        self.prompt_tokens = 0 
+        self.last_completion_tokens = 0
+        self.last_prompt_tokens = 0
 
     def _format_request_dict(self, messages=[], functions=None, function_call=None):
         request_args_dict = {
@@ -102,6 +110,41 @@ class CopilotContext:
             request_args_dict['model'] = self.openai_model
 
         return request_args_dict 
+
+    async def _ask_openai_async(self, messages=[], functions=None, function_call=None):
+        request_args_dict = {
+            "messages": messages,
+            "stream": False,
+            "temperature": 0
+        }
+
+        if functions:
+            request_args_dict['functions'] = functions
+
+        if functions and function_call:
+            request_args_dict['function_call'] = function_call
+
+        if self.use_aoai:
+            request_args_dict['engine'] = self.aoai_deployment
+        else:
+            request_args_dict['model'] = self.openai_model
+
+        response = await openai.ChatCompletion.acreate(**request_args_dict)        
+
+        response_ms = response.response_ms
+        prompt_tokens = response.usage.prompt_tokens
+        completion_tokens = response.usage.completion_tokens
+        total_tokens = response.usage.total_tokens
+
+        self.completion_tokens += completion_tokens
+        self.prompt_tokens += prompt_tokens
+        self.last_completion_tokens += completion_tokens
+        self.last_prompt_tokens += prompt_tokens
+
+        logger.info(f'Get response from ChatGPT in {response_ms} ms!')
+        logger.info(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
+
+        return response
 
     async def _safe_load_flow_yaml(self, yaml_str):
         try:
@@ -142,8 +185,7 @@ class CopilotContext:
             {'role':'system', 'content': rewrite_user_input_instruction},
             {'role':'user', 'content': user_input}
         ]
-        request_args_dict = self._format_request_dict(messages=chat_message)
-        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        response = await self._ask_openai_async(messages=chat_message)
         message = getattr(response.choices[0].message, "content", "")
         logger.info(f"rewrite_user_input: {message}")
         return message
@@ -155,8 +197,7 @@ class CopilotContext:
             {'role':'user', 'content': python_code}
         ]
 
-        request_args_dict = self._format_request_dict(messages=chat_message)
-        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        response = await self._ask_openai_async(messages=chat_message)
         message = getattr(response.choices[0].message, "content", "")
         return message
     
@@ -167,8 +208,7 @@ class CopilotContext:
             {'role':'user', 'content': python_code}
         ]
 
-        request_args_dict = self._format_request_dict(messages=chat_message)
-        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        response = await self._ask_openai_async(messages=chat_message)
         message = getattr(response.choices[0].message, "content", "").replace(' ', '')
         packages = []
         for p in message.split(','):
@@ -183,8 +223,7 @@ class CopilotContext:
             {'role':'user', 'content': flow_description}
         ]
 
-        request_args_dict = self._format_request_dict(messages=chat_message)
-        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        response = await self._ask_openai_async(messages=chat_message)
         message = getattr(response.choices[0].message, "content", "")
         return message
 
@@ -194,8 +233,7 @@ class CopilotContext:
             chat_message = [
                 {'role':'system', 'content': fix_json_string_instruction},
             ]
-            request_args_dict = self._format_request_dict(messages=chat_message)
-            response = await openai.ChatCompletion.acreate(**request_args_dict)
+            response = await self._ask_openai_async(messages=chat_message)
             message = getattr(response.choices[0].message, "content", "")
             return json.loads(message)
         except JSONDecodeError as ex:
@@ -210,8 +248,7 @@ class CopilotContext:
             chat_message = [
                 {'role':'system', 'content': fix_yaml_string_instruction},
             ]
-            request_args_dict = self._format_request_dict(messages=chat_message)
-            response = await openai.ChatCompletion.acreate(**request_args_dict)
+            response = await self._ask_openai_async(messages=chat_message)
             message = getattr(response.choices[0].message, "content", "")
             return yaml.safe_load(message)
         except yaml.MarkedYAMLError as ex:
@@ -237,8 +274,11 @@ class CopilotContext:
                 return await self._fix_json_string_and_loads(json_string, str(ex))
             else:
                 return await self._smart_json_loads(updated_function_call)
-        
+
     async def ask_gpt_async(self, content, print_info_func):
+        self.last_prompt_tokens = 0
+        self.last_tokens = 0
+
         rewritten_user_intent = await self._rewrite_user_input(content)
         potential_function_calls = self.copilot_general_function_calls
 
@@ -261,10 +301,7 @@ class CopilotContext:
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
         self.messages.append({'role':'system', 'content': self.function_call_instruction_template.render(functions=','.join([f['name'] for f in potential_function_calls]))})
 
-        request_args_dict = self._format_request_dict(
-            messages=self.messages, functions=potential_function_calls, function_call='auto')
-        
-        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        response = await self._ask_openai_async(messages=self.messages, functions=potential_function_calls, function_call='auto')
         await self.parse_gpt_response(response, print_info_func)
 
         # clear function message if we have already got the flow
@@ -274,22 +311,14 @@ class CopilotContext:
         # clear function call messages since we will append it every time
         self._clear_system_message()
 
-    async def parse_gpt_response(self, response, print_info_func):
-        response_ms = response.response_ms
-        prompt_tokens = response.usage.prompt_tokens
-        completion_tokens = response.usage.completion_tokens
-        total_tokens = response.usage.total_tokens
+        logger.info(f'answer finished. completion tokens: {self.completion_tokens}, prompt tokens: {self.prompt_tokens}, last completion tokens: {self.last_completion_tokens}, last prompt tokens: {self.last_prompt_tokens}')
 
+    async def parse_gpt_response(self, response, print_info_func):
         message = getattr(response.choices[0].message, "content", "")
         finish_reason = response.choices[0].finish_reason
         early_stop = False
         next_possible_function_calls = None
         function_call_choice = 'auto'
-
-        logger.info(f'Get response from ChatGPT in {response_ms} ms!')
-        logger.info(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
-        self.total_tokens = total_tokens
-        self.prompt_tokens = prompt_tokens
 
         if message:
             self.messages.append({'role':response.choices[0].message.role, 'content':message})
@@ -376,9 +405,7 @@ class CopilotContext:
                 self.messages.append({"role": "system", "content":"do not try to call functions that does not exist! Call the function that exists!"})
             
         if finish_reason != 'stop' and not early_stop:
-            request_args_dict = self._format_request_dict(
-                messages=self.messages, functions=next_possible_function_calls, function_call=function_call_choice)
-            new_response = await openai.ChatCompletion.acreate(**request_args_dict)
+            new_response = await self._ask_openai_async(messages=self.messages, functions=next_possible_function_calls, function_call=function_call_choice)
             await self.parse_gpt_response(new_response, print_info_func)    
 
     def _clear_function_message(self):
