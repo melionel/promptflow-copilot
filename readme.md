@@ -10,7 +10,8 @@ The promptflow copilot is aimed build an intellegent copilot on top of ChatGPT t
 - Understand user's existing code and turned it into promptflow [Done]
 - Help user to generate bulktest input data [Done]
 - Help user to generate evaluation flow [Done]
-- Parse and improve an existing promptflow [WIP]
+- Understand an existing promptflow [Done]
+- Help user add variant for llm node [Done]
 
 ## How to use
 
@@ -63,6 +64,15 @@ geneate bulktest inputs data for the flow
 generate evaluation flow for the flow
 ```
 
+5. Ask copilot to understand an existing promptflow
+```
+I have a promptflow in the folder C:\Tests\myflow, can you understand it
+```
+
+6. Ask copilot to add variant for llm node
+```
+Please add variant for my_llm node in my flow
+```
 
 ## Known issue
 
