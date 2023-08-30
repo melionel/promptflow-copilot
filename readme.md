@@ -21,6 +21,9 @@ pip install -r requirements.txt
 ```
 
 - Create a pfcopilot.env file in root folder, reference my_pfcopilot.env to set the corresponding environment variables in your own pfcopilot.env file.
+
+**Promptflow Copilot relys on the function calling features of OpenAI API. You must use models deployments that support function calling. [lear more about function calling](https://openai.com/blog/function-calling-and-other-api-updates)**
+
 - Currently, we provide two ways to chat with promptflow copilot
   - Chat with UI: from the root folder, run
     ```bash
@@ -73,6 +76,10 @@ I have a promptflow in the folder C:\Tests\myflow, can you understand it
 ```
 Please add variant for my_llm node in my flow
 ```
+
+## How does it work
+
+![CopilotArch](architecture.png)
 
 ## Known issue
 
