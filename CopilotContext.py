@@ -91,26 +91,6 @@ class CopilotContext:
         self.last_completion_tokens = 0
         self.last_prompt_tokens = 0
 
-    def _format_request_dict(self, messages=[], functions=None, function_call=None):
-        request_args_dict = {
-            "messages": messages,
-            "stream": False,
-            "temperature": 0
-        }
-
-        if functions:
-            request_args_dict['functions'] = functions
-
-        if functions and function_call:
-            request_args_dict['function_call'] = function_call
-
-        if self.use_aoai:
-            request_args_dict['engine'] = self.aoai_deployment
-        else:
-            request_args_dict['model'] = self.openai_model
-
-        return request_args_dict 
-
     async def _ask_openai_async(self, messages=[], functions=None, function_call=None):
         request_args_dict = {
             "messages": messages,
@@ -151,7 +131,7 @@ class CopilotContext:
             parsed_flow_yaml = await self._smart_yaml_loads(yaml_str)
             if 'nodes' in parsed_flow_yaml:
                 for node in parsed_flow_yaml['nodes']:
-                    if node['type'] == 'llm':
+                    if 'type' in node and node['type'] == 'llm':
                         if 'inputs' in node and 'prompt' in node['inputs']:
                             del node['inputs']['prompt']
             if 'node_variants' in parsed_flow_yaml:
@@ -400,6 +380,7 @@ class CopilotContext:
                 function_arguments = await self._smart_json_loads(function_call)
                 await self.upsert_flow_files(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": ""})
+                early_stop = True
             else:
                 logger.info(f'GPT try to call unavailable function: {function_name}')
                 self.messages.append({"role": "system", "content":"do not try to call functions that does not exist! Call the function that exists!"})
@@ -413,7 +394,7 @@ class CopilotContext:
         clear some function message from messages to reduce chat history size
         '''
         for message in self.messages:
-            if message['role'] == 'function' and message['name'] in ['read_local_file', 'read_local_folder', 'read_flow_from_local_file', 'read_flow_from_local_folder']:
+            if message['role'] == 'function' and message['name'] in ['read_local_file', 'read_local_folder', 'read_flow_from_local_file', 'read_flow_from_local_folder', 'upsert_flow_files']:
                 self.messages.remove(message)
 
     def _clear_system_message(self):
@@ -421,7 +402,7 @@ class CopilotContext:
         clear some system message from messages to reduce chat history size
         '''
         for message in self.messages:
-            if message['role'] == 'system' and message['content'] == self.function_call_instruction_template.render():
+            if message['role'] == 'system' and message['content'].startswith("You can also calling the functions listed in [FUNCTIONS] directly on behalf of the user"):
                 self.messages.remove(message)
 
     # region functions
