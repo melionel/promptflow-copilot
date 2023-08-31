@@ -7,6 +7,8 @@ from CopilotContext import CopilotContext
 import asyncio
 colorama.init(autoreset=False)
 
+def print_no_newline(msg):
+    print(msg, end="")
 
 def main():
     print(colored(f'[{COPILOT_TAG}]:', 'red'))
@@ -27,17 +29,17 @@ def main():
 
     loop = asyncio.get_event_loop()
     while True:
-        goal = input(colored(f'[{USER_TAG}]: \n', 'red'))
+        goal = input(colored(f'\n[{USER_TAG}]: \n', 'red'))
         if goal == 'exit':
-            print(colored(f'[{COPILOT_TAG}]:', 'red') + '\n You are trying to end this chat, and it will be closed.')
+            print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + '\n You are trying to end this chat, and it will be closed.')
             break
         else:
             print(colored(f'[{COPILOT_TAG}]:', 'red'))
             try:
-                loop.run_until_complete(copilot_context.ask_gpt_async(goal, print))
+                loop.run_until_complete(copilot_context.ask_gpt_async(goal, print_no_newline))
             except Exception:
                 trace_back = traceback.format_exc()
-                print('Error occurred. Please fix the error and try again.\n' + trace_back)
+                print('\nError occurred. Please fix the error and try again.\n' + trace_back)
 
 if __name__ == '__main__':
     main()
