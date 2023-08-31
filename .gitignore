@@ -4,3 +4,4 @@ pfcopilot*.log
 __pycache__
 .promptflow
 .vscode
+flow_*/

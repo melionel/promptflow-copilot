@@ -10,7 +10,7 @@ from constants import entry_default_message, welcome_message, checking_environme
 from logging_util import get_logger
 from tool_tip import ToolTip
 
-current_tag = USER_TAG
+current_tag = COPILOT_TAG
 
 def handle_exception(exc_traceback):
     messagebox.showerror("Error occurred. Please try again.", exc_traceback)
@@ -24,8 +24,9 @@ async def get_response_async():
         if user_input == entry_default_message or user_input == '':
             return
         add_to_chat(user_input, USER_TAG)
-        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
-        update_label.configure(text=f'Talking to GPT...\t{cost_text}')
+        input_box.delete(0, tk.END)
+        # cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
+        update_label.configure(text=f'Talking to GPT...')
         send_button.configure(state=tk.DISABLED)
         reset_button.configure(state=tk.DISABLED)
         app.update()
@@ -35,8 +36,8 @@ async def get_response_async():
         handle_exception(trace_back)
     finally:
         chat_box.yview_moveto(1.0)
-        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
-        update_label.configure(text=f"Waiting for user's input...\t {cost_text}")
+        # cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
+        update_label.configure(text=f"Waiting for user's input...")
         send_button.configure(state=tk.NORMAL)
         reset_button.configure(state=tk.NORMAL)
         app.update()
@@ -58,12 +59,12 @@ def add_to_chat(message, tag=COPILOT_TAG):
     global current_tag
     chat_box.configure(state=tk.NORMAL)
     if tag != current_tag:
+        chat_box.insert(tk.END, '\n', current_tag)
         add_image_to_chat(tag)
         current_tag = tag
-    chat_box.insert(tk.END, message + "\n", tag)
+    chat_box.insert(tk.END, message, tag)
     chat_box.configure(state=tk.DISABLED)
     chat_box.yview_moveto(1.0)
-    input_box.delete(0, tk.END)
     app.update()
 
 def add_image_to_chat(tag=COPILOT_TAG):
@@ -142,6 +143,7 @@ send_button_tooltip = ToolTip(send_button, normal_text="send user input", disabl
 
 # check environment
 env_ready, msg = copilot_context.check_env()
+add_image_to_chat()
 add_to_chat(welcome_message, COPILOT_TAG)
 add_to_chat(checking_environment_message, COPILOT_TAG)
 if env_ready:
