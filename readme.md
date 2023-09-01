@@ -31,13 +31,16 @@ pip install -r requirements.txt
     ```
     Then you can chat with it like that:
     ![CopilotUI](copilot_ui.png)
+
+    You can start a new chat by click the `New chat` button.
   - Chat with CLI: from the root folder, run
     ```bash
     python copilot_cli.py
     ```
     Then you can chat with it like that:
     ![CopilotCLI](copilot_cli.png)
-    You can end the chat by type `exit` in the command line.
+    
+    You can end the chat by type `exit` in the command line, or start a new chat by type `new chat` in the command line.
 
 - chat with promptflow copilot
 

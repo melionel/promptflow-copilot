@@ -30,9 +30,12 @@ def main():
     loop = asyncio.get_event_loop()
     while True:
         goal = input(colored(f'\n[{USER_TAG}]: \n', 'red'))
-        if goal == 'exit':
+        if goal.lower() == 'exit':
             print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + '\n You are trying to end this chat, and it will be closed.')
             break
+        if goal.lower() == 'new chat':
+            copilot_context.reset()
+            print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + "Okay, let's satrt over. What can I do for you?")
         else:
             print(colored(f'[{COPILOT_TAG}]:', 'red'))
             try:

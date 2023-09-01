@@ -133,7 +133,7 @@ input_box.grid(row=2, column=0, columnspan=8, sticky='nsew', padx=(5, 5), pady=(
 input_box.bind("<Control-Return>", command=async_handler(ctrl_enter_pressed))
 input_box.bind("<Return>", command=async_handler(ctrl_enter_pressed))
 
-reset_button = customtkinter.CTkButton(app, text="Start over", command=start_over)
+reset_button = customtkinter.CTkButton(app, text="New chat", command=start_over)
 reset_button.grid(row=0, column=9, columnspan=1, sticky='nsew', padx=(0, 10), pady=(5, 5))
 reset_button_tooltip = ToolTip(reset_button, normal_text="reset copilot context", disabled_text="please wait until the current request is completed")
 
