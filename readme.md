@@ -20,7 +20,7 @@ The Promptflow Copilot is an intelligent assistant built on the ChatGPT platform
 pip install -r requirements.txt
 ```
 
-- Create a pfcopilot.env file in root folder, reference my_pfcopilot.env to set the corresponding environment variables in your own pfcopilot.env file.
+- Create a pfcopilot.env file in root folder, reference pfcopilot.env.example to set the corresponding environment variables in your own pfcopilot.env file.
 
 **Promptflow Copilot relys on the function calling features of OpenAI API. You must use models or deployments that support function calling. [learn more about function calling](https://openai.com/blog/function-calling-and-other-api-updates)**
 
