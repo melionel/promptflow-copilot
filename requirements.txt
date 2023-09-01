@@ -6,3 +6,4 @@ termcolor
 pyyaml
 async-tkinter-loop
 tiktoken
+Jinja2
