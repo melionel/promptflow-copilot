@@ -5,3 +5,4 @@ pillow
 termcolor
 pyyaml
 async-tkinter-loop
+tiktoken

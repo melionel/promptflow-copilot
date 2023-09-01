@@ -25,8 +25,8 @@ async def get_response_async():
             return
         add_to_chat(user_input, USER_TAG)
         input_box.delete(0, tk.END)
-        # cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
-        update_label.configure(text=f'Talking to GPT...')
+        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
+        update_label.configure(text=f'Talking to GPT...\t{cost_text}')
         send_button.configure(state=tk.DISABLED)
         reset_button.configure(state=tk.DISABLED)
         app.update()
@@ -36,8 +36,8 @@ async def get_response_async():
         handle_exception(trace_back)
     finally:
         chat_box.yview_moveto(1.0)
-        # cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
-        update_label.configure(text=f"Waiting for user's input...")
+        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
+        update_label.configure(text=f"Waiting for user's input...\t{cost_text}")
         send_button.configure(state=tk.NORMAL)
         reset_button.configure(state=tk.NORMAL)
         app.update()

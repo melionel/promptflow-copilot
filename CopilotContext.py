@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
 from logging_util import get_logger
 import function_calls
+from token_utils import num_tokens_from_messages, num_tokens_from_functions, num_tokens_from_completions
 
 logger = get_logger()
 
@@ -282,6 +283,9 @@ class CopilotContext:
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
         self.messages.append({'role':'system', 'content': self.function_call_instruction_template.render(functions=','.join([f['name'] for f in potential_function_calls]))})
 
+        prompt_tokens = num_tokens_from_messages(self.messages) + num_tokens_from_functions(potential_function_calls)
+        self.prompt_tokens += prompt_tokens
+        self.last_prompt_tokens += prompt_tokens
         response = await self._ask_openai_async(messages=self.messages, functions=potential_function_calls, function_call='auto', stream=True)
         await self.parse_gpt_response(response, print_info_func)
 
@@ -294,7 +298,7 @@ class CopilotContext:
 
         logger.info(f'answer finished. completion tokens: {self.completion_tokens}, prompt tokens: {self.prompt_tokens}, last completion tokens: {self.last_completion_tokens}, last prompt tokens: {self.last_prompt_tokens}')
 
-    async def parse_gpt_response(self, response, print_info_func, streaming=True):
+    async def parse_gpt_response(self, response, print_info_func):
         role = "assistant"
         message = ""
         function_call = ""
@@ -303,34 +307,29 @@ class CopilotContext:
         next_possible_function_calls = None
         function_call_choice = 'auto'
 
-        if streaming:
-            async for chunk in response:
-                if 'choices' in chunk and len(chunk['choices']) > 0:
-                    delta = chunk.choices[0]['delta']
-                    if 'content' in delta:
-                        cur_message = delta['content']
-                        message += cur_message
-                        print_info_func(cur_message)
-                    if 'function_call' in delta:
-                        if "name" in delta.function_call:
-                            function_name = delta.function_call["name"]
-                        if "arguments" in delta.function_call:
-                            function_call+= delta.function_call["arguments"]
-                    if 'role' in delta:
-                        role = delta['role']
-                    finish_reason = chunk.choices[0].finish_reason
-        else:
-            message = getattr(response.choices[0].message, "content", "")
-            finish_reason = response.choices[0].finish_reason
-            function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
-            function_name = getattr(response.choices[0].message.function_call, "name", "") if function_call != "" else ""
-            role = response.choices[0].message.role
-            if message:
-                print_info_func(message)
+        async for chunk in response:
+            if 'choices' in chunk and len(chunk['choices']) > 0:
+                delta = chunk.choices[0]['delta']
+                if 'content' in delta:
+                    cur_message = delta['content']
+                    message += cur_message
+                    print_info_func(cur_message)
+                if 'function_call' in delta:
+                    if "name" in delta.function_call:
+                        function_name = delta.function_call["name"]
+                    if "arguments" in delta.function_call:
+                        function_call+= delta.function_call["arguments"]
+                if 'role' in delta:
+                    role = delta['role']
+                finish_reason = chunk.choices[0].finish_reason
 
         if message:
             self.messages.append({'role':role, 'content':message})
         
+        completion_tokens = num_tokens_from_completions(message + function_call)
+        self.completion_tokens += completion_tokens
+        self.last_completion_tokens += completion_tokens
+
         if function_call != "":
             if function_name == 'dump_flow':
                 function_arguments = await self._smart_json_loads(function_call)
@@ -411,6 +410,9 @@ class CopilotContext:
                 self.messages.append({"role": "system", "content":"do not try to call functions that does not exist! Call the function that exists!"})
             
         if finish_reason != 'stop' and not early_stop:
+            prompt_tokens = num_tokens_from_messages(self.messages) + num_tokens_from_functions(next_possible_function_calls)
+            self.prompt_tokens += prompt_tokens
+            self.last_prompt_tokens += prompt_tokens
             new_response = await self._ask_openai_async(messages=self.messages, functions=next_possible_function_calls, function_call=function_call_choice, stream=True)
             await self.parse_gpt_response(new_response, print_info_func)    
 
