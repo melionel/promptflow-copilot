@@ -58,9 +58,12 @@ def num_tokens_from_functions(functions):
                                 function_tokens -= 3
                                 for _, o in v['items'].items():
                                     function_tokens += 2
-                                    for _, oo in o.items():
-                                        function_tokens += 2
-                                        function_tokens += len(encoding.encode(oo))
+                                    if isinstance(o, str):
+                                        function_tokens += len(encoding.encode(o))
+                                    elif isinstance(o, dict):
+                                        for _, oo in o.items():
+                                            function_tokens += 2
+                                            function_tokens += len(encoding.encode(oo))
                             else:
                                 logger.warning(f"Warning: not supported field {field}")
                     function_tokens += 11
