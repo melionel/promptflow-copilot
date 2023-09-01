@@ -1,4 +1,7 @@
 import tiktoken
+from logging_util import get_logger
+
+logger = get_logger()
 
 def num_tokens_from_messages(messages):
     """Return the number of tokens used by a list of messages."""
@@ -7,7 +10,7 @@ def num_tokens_from_messages(messages):
         model = "gpt-3.5-turbo-0613"
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
-        print("Warning: model not found. Using cl100k_base encoding.")
+        logger.warning("Warning: model not found. Using cl100k_base encoding.")
         encoding = tiktoken.get_encoding("cl100k_base")
 
     tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
@@ -30,7 +33,7 @@ def num_tokens_from_functions(functions):
             model = "gpt-3.5-turbo-0613"
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
-            print("Warning: model not found. Using cl100k_base encoding.")
+            logger.warning("Warning: model not found. Using cl100k_base encoding.")
             encoding = tiktoken.get_encoding("cl100k_base")
         
         num_tokens = 0
@@ -51,13 +54,15 @@ def num_tokens_from_functions(functions):
                             elif field == 'description':
                                 function_tokens += 2
                                 function_tokens += len(encoding.encode(v['description']))
-                            elif field == 'enum':
+                            elif field == 'items':
                                 function_tokens -= 3
-                                for o in v['enum']:
-                                    function_tokens += 3
-                                    function_tokens += len(encoding.encode(o))
+                                for _, o in v['items'].items():
+                                    function_tokens += 2
+                                    for _, oo in o.items():
+                                        function_tokens += 2
+                                        function_tokens += len(encoding.encode(oo))
                             else:
-                                print(f"Warning: not supported field {field}")
+                                logger.warning(f"Warning: not supported field {field}")
                     function_tokens += 11
 
             num_tokens += function_tokens
@@ -72,7 +77,7 @@ def num_tokens_from_completions(completion_text):
         model = "gpt-3.5-turbo-0613"
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
-        print("Warning: model not found. Using cl100k_base encoding.")
+        logger.warning("Warning: model not found. Using cl100k_base encoding.")
         encoding = tiktoken.get_encoding("cl100k_base")
     
     if not completion_text:
