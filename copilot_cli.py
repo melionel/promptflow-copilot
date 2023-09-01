@@ -12,7 +12,7 @@ def print_no_newline(msg):
 
 def main():
     print(colored(f'[{COPILOT_TAG}]:', 'red'))
-    print(welcome_message + 'You can type `exit` to end this chat.')
+    print(welcome_message + 'You can end the chat by type `exit` in the command line, or start a new chat by type `new chat` in the command line')
 
     load_dotenv('pfcopilot.env')
     
