@@ -4,14 +4,14 @@ An intelligent copilot designed for promptflow
 
 ## Objective
 
-The promptflow copilot is aimed build an intellegent copilot on top of ChatGPT that can interactively help promptflow users to:
+The Promptflow Copilot is an intelligent assistant built on the ChatGPT platform, designed to interactively assist Promptflow users with:
 
-- Automatically create promptflow to accomplish the given goal [Done]
-- Understand user's existing code and turned it into promptflow [Done]
-- Help user to generate bulktest input data [Done]
-- Help user to generate evaluation flow [Done]
-- Understand an existing promptflow [Done]
-- Help user add variant for llm node [Done]
+- Automatically generating promptflow to accomplish the given goal [Done]
+- Understanding users' pre-existing code and converting it into promptflow [Done]
+- Assisting users in generating bulk test input data [Done]
+- Assisting users in creating an evaluation flow [Done]
+- Comprehending existing promptflow [Done]
+- Assisting users in adding variations for llm node [Done]
 
 ## How to use
 
@@ -22,7 +22,7 @@ pip install -r requirements.txt
 
 - Create a pfcopilot.env file in root folder, reference my_pfcopilot.env to set the corresponding environment variables in your own pfcopilot.env file.
 
-**Promptflow Copilot relys on the function calling features of OpenAI API. You must use models deployments that support function calling. [lear more about function calling](https://openai.com/blog/function-calling-and-other-api-updates)**
+**Promptflow Copilot relys on the function calling features of OpenAI API. You must use models or deployments that support function calling. [learn more about function calling](https://openai.com/blog/function-calling-and-other-api-updates)**
 
 - Currently, we provide two ways to chat with promptflow copilot
   - Chat with UI: from the root folder, run
@@ -52,6 +52,24 @@ my goal: check if there are gramma mistakes in a github repo's files, the file m
 ```
 I have a python program in my_app.py, please convert it into a flow
 ```
+
+Your app.py can be like this:
+```python
+search_query = ''
+bing_engine = BingEngine()
+google_engine = GoogleEngine()
+bing_results = bing_engine.search(search_query)
+google_results = google_engine.search(search_query)
+
+men_charactor = "You are a man. compare the search results from bing and google, and choose the one you like."
+women_charactor = "You are a woman. compare the search results from bing and google, and choose the one you like."
+
+men_choice = choose(men_charactor, bing_results, google_results)
+women_choice = choose(men_charactor, bing_results, google_results)
+
+return {'men': men_choice, 'women': women_choice}
+```
+
 or
 ```
 I have a python program in the folder C:\LangchainTests\chat_with_pdf, can you understand it and help to convert it into a flow
