@@ -18,7 +18,8 @@ logger = get_logger()
 
 class CopilotContext:
     def __init__(self) -> None:
-        load_dotenv('pfcopilot.env')
+        self.script_directory = os.path.dirname(os.path.abspath(__file__))
+        load_dotenv(os.path.join(self.script_directory, 'pfcopilot.env'))
         self.use_aoai = os.environ.get("AOAI_BY_DEFAULT", "true").lower() == "true"
         self.aoai_key = os.environ.get("AOAI_API_KEY")
         self.aoai_deployment = os.environ.get("AOAI_DEPLOYMENT")
@@ -36,7 +37,7 @@ class CopilotContext:
         self.flow_description = None
         self.flow_yaml = None
 
-        jinja_env = Environment(loader=FileSystemLoader('./'), variable_start_string='[[', variable_end_string=']]')
+        jinja_env = Environment(loader=FileSystemLoader(self.script_directory), variable_start_string='[[', variable_end_string=']]')
         self.copilot_instruction_template = jinja_env.get_template('prompts/copilot_instruction.jinja2')
         self.rewrite_user_input_template = jinja_env.get_template('prompts/rewrite_user_input.jinja2')
         self.refine_python_code_template = jinja_env.get_template('prompts/refine_python_code.jinja2')
@@ -88,7 +89,7 @@ class CopilotContext:
         self.flow_yaml = None
         self.flow_description = None
         self.completion_tokens = 0
-        self.prompt_tokens = 0 
+        self.prompt_tokens = 0
         self.last_completion_tokens = 0
         self.last_prompt_tokens = 0
 
@@ -110,7 +111,7 @@ class CopilotContext:
         else:
             request_args_dict['model'] = self.openai_model
 
-        response = await openai.ChatCompletion.acreate(**request_args_dict)        
+        response = await openai.ChatCompletion.acreate(**request_args_dict)
 
         if not stream:
             response_ms = response.response_ms
@@ -171,7 +172,7 @@ class CopilotContext:
         message = getattr(response.choices[0].message, "content", "")
         logger.info(f"rewrite_user_input: {message}")
         return message
-    
+
     async def _refine_python_code(self, python_code):
         refine_python_code_instruction = self.refine_python_code_template.render()
         chat_message = [
@@ -182,7 +183,7 @@ class CopilotContext:
         response = await self._ask_openai_async(messages=chat_message)
         message = getattr(response.choices[0].message, "content", "")
         return message
-    
+
     async def _find_dependent_python_packages(self, python_code):
         find_dependent_python_packages_instruction = self.find_python_package_template.render()
         chat_message = [
@@ -197,7 +198,7 @@ class CopilotContext:
             if p != 'None':
                 packages.append(p)
         return packages
-    
+
     async def _summarize_flow_name(self, flow_description):
         summarize_flow_name_instruction = self.summarize_flow_name_template.render()
         chat_message = [
@@ -238,7 +239,7 @@ class CopilotContext:
             if max_retry > 0 and message != yaml_string:
                 return await self._fix_yaml_string_and_loads(message, str(ex), max_retry=max_retry-1)
             raise ex
-        
+
     async def _smart_yaml_loads(self, yaml_string):
         try:
             return yaml.safe_load(yaml_string)
@@ -268,16 +269,16 @@ class CopilotContext:
             system_message = self.understand_flow_template.render(flow_directory=self.flow_folder, flow_yaml_path=os.path.join(self.flow_folder, 'flow.dag.yaml'), flow_yaml=self.flow_yaml, flow_description=self.flow_description)
             self.messages[0] = {'role':'system', 'content': system_message}
             potential_function_calls = [
-                function_calls.dump_sample_inputs, 
-                function_calls.dump_evaluation_flow, 
+                function_calls.dump_sample_inputs,
+                function_calls.dump_evaluation_flow,
                 function_calls.upsert_flow_files]
         elif len(self.messages) == 0:
             self.messages.append({'role':'system', 'content':self.system_instruction})
             potential_function_calls = [
                 function_calls.dump_flow,
-                function_calls.read_flow_from_local_file, 
-                function_calls.read_flow_from_local_folder, 
-                function_calls.read_local_file, 
+                function_calls.read_flow_from_local_file,
+                function_calls.read_flow_from_local_folder,
+                function_calls.read_local_file,
                 function_calls.read_local_folder]
 
         self.messages.append({'role':'user', 'content':rewritten_user_intent})
@@ -292,7 +293,7 @@ class CopilotContext:
         # clear function message if we have already got the flow
         if self.flow_yaml:
             self._clear_function_message()
-        
+
         # clear function call messages since we will append it every time
         self._clear_system_message()
 
@@ -325,7 +326,7 @@ class CopilotContext:
 
         if message:
             self.messages.append({'role':role, 'content':message})
-        
+
         completion_tokens = num_tokens_from_completions(message + function_call)
         self.completion_tokens += completion_tokens
         self.last_completion_tokens += completion_tokens
@@ -408,13 +409,13 @@ class CopilotContext:
             else:
                 logger.info(f'GPT try to call unavailable function: {function_name}')
                 self.messages.append({"role": "system", "content":"do not try to call functions that does not exist! Call the function that exists!"})
-            
+
         if finish_reason != 'stop' and not early_stop:
             prompt_tokens = num_tokens_from_messages(self.messages) + num_tokens_from_functions(next_possible_function_calls)
             self.prompt_tokens += prompt_tokens
             self.last_prompt_tokens += prompt_tokens
             new_response = await self._ask_openai_async(messages=self.messages, functions=next_possible_function_calls, function_call=function_call_choice, stream=True)
-            await self.parse_gpt_response(new_response, print_info_func)    
+            await self.parse_gpt_response(new_response, print_info_func)
 
     def _clear_function_message(self):
         '''
@@ -440,7 +441,7 @@ class CopilotContext:
         if not self.flow_folder:
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             flow_name = await self._summarize_flow_name(explaination) if explaination else 'flow_generated'
-            self.flow_folder = f'flow_{flow_name}_{timestamp}'
+            self.flow_folder = os.path.join(self.script_directory, f'flow_{flow_name}_{timestamp}')
 
         target_folder = self.flow_folder
 
@@ -604,7 +605,7 @@ class CopilotContext:
                         sample_input = json.dumps(sample_input)
                     f.write(sample_input + '\n')
             print_info_func(f'\nGenerated {len(sample_inputs)} sample inputs for your flow. And dump them into {target_folder}\\flow.sample_inputs.jsonl')
-        
+
         return sample_inputs_file
 
     async def dump_evaluation_inputs(self, evaluation_inputs, eval_flow_folder, flow_outputs_schema, print_info_func, reasoning=None, **kwargs):
@@ -621,7 +622,7 @@ class CopilotContext:
                         output_name = flow_output['name']
                         sample_input[output_name] = '<expected_output>'
                 f.write(json.dumps(sample_input) + '\n')
-        
+
 
     async def dump_evaluation_flow(self, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
@@ -636,7 +637,7 @@ class CopilotContext:
             logger.info(f'Create flow folder:{eval_flow_folder}')
 
         logger.info('Dumping evalutaion flow...')
-        evaluation_flow_template_folder = '.\evaluation_template'
+        evaluation_flow_template_folder = os.path.join(self.script_directory, '.\evaluation_template')
         file_list = os.listdir(evaluation_flow_template_folder)
         import shutil
         for file_name in file_list:
@@ -700,7 +701,7 @@ if __name__ == "__main__":
     main()
 
     """
-        with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f: 
+        with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f:
             f.write(sdk_eval_sample_code)
 
         print_info_func(f'\nDumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
@@ -737,7 +738,7 @@ if __name__ == "__main__":
                 print_info_func(f'\ncreate new file {file_name}')
             with open(file_name, 'w', encoding="utf-8") as f:
                 f.write(file_content)
-            
+
             if file_name.endswith('dag.yaml'):
                 logger.info('update flow yaml')
                 await self._safe_load_flow_yaml(file_content)

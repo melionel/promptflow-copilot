@@ -9,6 +9,7 @@ from constants import USER_TAG, COPILOT_TAG, IMAGE_TAG, USER_TEXT_COLOR, LABEL_C
 from constants import entry_default_message, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
 from logging_util import get_logger
 from tool_tip import ToolTip
+import os
 
 current_tag = COPILOT_TAG
 
@@ -25,7 +26,9 @@ async def get_response_async():
             return
         add_to_chat(user_input, USER_TAG)
         input_box.delete(0, tk.END)
-        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
+        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t' + \
+            f'last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t' + \
+            f'money cost:${copilot_context.total_money_cost:.3f}'
         update_label.configure(text=f'Talking to GPT...\t{cost_text}')
         send_button.configure(state=tk.DISABLED)
         reset_button.configure(state=tk.DISABLED)
@@ -36,7 +39,9 @@ async def get_response_async():
         handle_exception(trace_back)
     finally:
         chat_box.yview_moveto(1.0)
-        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t money cost:${copilot_context.total_money_cost}'
+        cost_text = f'total token cost: {copilot_context.prompt_tokens}/{copilot_context.completion_tokens}\t' + \
+            f'last token cost:{copilot_context.last_prompt_tokens}/{copilot_context.last_completion_tokens}\t' + \
+            f'money cost:${copilot_context.total_money_cost:.3f}'
         update_label.configure(text=f"Waiting for user's input...\t{cost_text}")
         send_button.configure(state=tk.NORMAL)
         reset_button.configure(state=tk.NORMAL)
@@ -54,7 +59,7 @@ def start_over():
     except Exception:
         trace_back = traceback.format_exc()
         handle_exception(trace_back)
-        
+
 def add_to_chat(message, tag=COPILOT_TAG):
     global current_tag
     chat_box.configure(state=tk.NORMAL)
@@ -69,7 +74,9 @@ def add_to_chat(message, tag=COPILOT_TAG):
 
 def add_image_to_chat(tag=COPILOT_TAG):
     chat_box.image_create(tk.END, image=images_dict[tag], padx=10, pady=5)
-    chat_box.insert(tk.END, f"{tag}\n", IMAGE_TAG)
+    import datetime
+    now = datetime.datetime.now().strftime("%H:%M:%S")
+    chat_box.insert(tk.END, f"{tag}\t({now})\n", IMAGE_TAG)
 
 async def ctrl_enter_pressed(event):
     button_state = send_button.cget('state')
@@ -82,7 +89,7 @@ def handle_selection(event):
     widget.tag_remove("sel", "1.0", "end")
     widget.tag_add("sel", index, "%s+%dc" % (index, 1))
 
-customtkinter.set_appearance_mode("system")  # Modes: system (default), light, dark
+customtkinter.set_appearance_mode("dark")  # Modes: system (default), light, dark
 customtkinter.set_default_color_theme("blue")  # Themes: blue (default), dark-blue, green
 
 # Create the main application window
@@ -103,12 +110,14 @@ app.rowconfigure(1, minsize=200)
 app.geometry("1280x800")
 app.minsize(400, 400)
 
-tk_image = ImageTk.PhotoImage(Image.open("icon.png"))
+script_directory = os.path.dirname(os.path.abspath(__file__))
+
+tk_image = ImageTk.PhotoImage(Image.open(os.path.join(script_directory, "icon.png")))
 app.wm_iconbitmap()
 app.iconphoto(False, tk_image)
 
-copilot_image = ImageTk.PhotoImage(Image.open("bot.png"))
-user_image = ImageTk.PhotoImage(Image.open("user.png"))
+copilot_image = ImageTk.PhotoImage(Image.open(os.path.join(script_directory, "bot.png")))
+user_image = ImageTk.PhotoImage(Image.open(os.path.join(script_directory, "user.png")))
 images_dict = {USER_TAG: user_image, COPILOT_TAG: copilot_image}
 
 update_label = customtkinter.CTkLabel(app, text="Status: Waiting for user's input...", text_color=LABEL_COLOR, font=LABEL_FONT, padx=10)
