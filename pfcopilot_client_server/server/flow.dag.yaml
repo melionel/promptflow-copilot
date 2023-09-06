@@ -1,0 +1,101 @@
+id: template_standard_flow
+name: Template Standard Flow
+inputs:
+  data:
+    type: string
+    default: '{     "content": "Please help dump a flow rely on the contents in the
+      floder test-flow",     "messages": [] }'
+    is_chat_input: false
+  reason:
+    type: string
+    default: rewrite_user_input
+    is_chat_input: false
+outputs:
+  answer:
+    type: string
+    reference: ${chat_copilot.output}
+nodes:
+- name: chat_copilot
+  type: python
+  source:
+    type: code
+    path: chat_copilot.py
+  inputs:
+    aoai_connection: wuya-aoai
+    aoai_deployment: gpt-4
+    copilot_instruction_template: ${copilot_instruction.output}
+    data: ${inputs.data}
+    find_python_package_template: ${find_python_package.output}
+    function_call_instruction_template: ${function_call_instruction.output}
+    json_string_fixer_template: ${json_string_fixer.output}
+    reason: ${inputs.reason}
+    refine_python_code_template: ${refine_python_code.output}
+    rewrite_user_input_template: ${rewrite_user_input.output}
+    summarize_flow_name_template: ${summarize_flow_name.output}
+    understand_flow_template: ${understand_flow_instruction.output}
+    yaml_string_fixer_template: ${yaml_string_fixer.output}
+  use_variants: false
+- name: rewrite_user_input
+  type: prompt
+  source:
+    type: code
+    path: rewrite_user_input.jinja2
+  inputs: {}
+  use_variants: false
+- name: find_python_package
+  type: prompt
+  source:
+    type: code
+    path: find_python_package.jinja2
+  inputs: {}
+  use_variants: false
+- name: json_string_fixer
+  type: prompt
+  source:
+    type: code
+    path: json_string_fixer.jinja2
+  inputs: {}
+  use_variants: false
+- name: yaml_string_fixer
+  type: prompt
+  source:
+    type: code
+    path: yaml_string_fixer.jinja2
+  inputs: {}
+  use_variants: false
+- name: function_call_instruction
+  type: prompt
+  source:
+    type: code
+    path: function_call_instruction.jinja2
+  inputs: {}
+  use_variants: false
+- name: copilot_instruction
+  type: prompt
+  source:
+    type: code
+    path: copilot_instruction.jinja2
+  inputs: {}
+  use_variants: false
+- name: refine_python_code
+  type: prompt
+  source:
+    type: code
+    path: refine_python_code.jinja2
+  inputs: {}
+  use_variants: false
+- name: understand_flow_instruction
+  type: prompt
+  source:
+    type: code
+    path: understand_flow_instruction.jinja2
+  inputs: {}
+  use_variants: false
+- name: summarize_flow_name
+  type: prompt
+  source:
+    type: code
+    path: summarize_flow_name.jinja2
+  inputs: {}
+  use_variants: false
+node_variants: {}
