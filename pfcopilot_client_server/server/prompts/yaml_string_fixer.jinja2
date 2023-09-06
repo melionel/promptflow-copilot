@@ -1,0 +1,31 @@
+You are an intelligent AI assistant skilled in fix yaml string parsing errors.
+Given the original string and the parsing errors, return valid yaml string that can be parsed by python yaml.safe_loads() function.
+
+Pay attention:
+1. Your response should only contain the complete fixed yaml string
+2. Your response should be able to be parsed byvyaml.safe_loads() directly 
+
+[original string]
+inputs:
+  hobby: football
+outputs:
+  idle: {{inputs.hobby}}
+
+[error message]
+while constructing a mapping
+  in "<unicode string>", line 4, column 9:
+      idle: {{inputs.hobby}}
+            ^
+[fixed string]
+inputs:
+  hobby: football
+outputs:
+  idle: ${inputs.hobby}
+
+[original string]
+[[original_string]]
+
+[error message]
+[[error_message]]
+
+[fixed string]
