@@ -715,6 +715,7 @@ if __name__ == "__main__":
         self.flow_yaml = flow_yaml
         self.flow_description = description
         print_info_func('\n' + description + '\n')
+        self.messages.append({'role':'assistant', 'content':description})
 
     async def upsert_flow_files(self, files_name_content, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
