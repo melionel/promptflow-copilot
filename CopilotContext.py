@@ -441,7 +441,7 @@ class CopilotContext:
         if not self.flow_folder:
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             flow_name = await self._summarize_flow_name(explaination) if explaination else 'flow_generated'
-            self.flow_folder = os.path.join(self.script_directory, f'flow_{flow_name}_{timestamp}')
+            self.flow_folder = f'flow_{flow_name}_{timestamp}'
 
         target_folder = self.flow_folder
 
@@ -714,7 +714,7 @@ if __name__ == "__main__":
 
         self.flow_yaml = flow_yaml
         self.flow_description = description
-        print_info_func('\n' + description + '\n')
+        print_info_func(description)
         self.messages.append({'role':'assistant', 'content':description})
 
     async def upsert_flow_files(self, files_name_content, print_info_func, reasoning=None, **kwargs):
