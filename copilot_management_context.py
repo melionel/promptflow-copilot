@@ -69,7 +69,8 @@ class CopilotManagementContext:
     
     def check_env(self):
         if self.use_endpoint:
-            return False, "Skip check env because it will be checked in endpoint."
+            logger.info('Skip check env because it will be checked in endpoint.')
+            return True, ""
         else:
             return self.copilot_gpt_context.check_env()
             

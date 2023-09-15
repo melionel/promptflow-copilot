@@ -37,7 +37,7 @@ def main():
             break
         if goal.lower() == 'new chat':
             copilot_context.reset()
-            print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + "Okay, let's satrt over. What can I do for you?")
+            print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + "Okay, let's start over. What can I do for you?")
         else:
             print(colored(f'[{COPILOT_TAG}]:', 'red'))
             try:

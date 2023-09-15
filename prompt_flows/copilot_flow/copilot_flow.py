@@ -27,7 +27,7 @@ def copilot_flow(data: str,
                  json_string_fixer_template: str,
                  yaml_string_fixer_template: str,
                  function_call_instruction_template: str):
-     aoai_setting = AOAISetting(aoai_connection.aoai_key, aoai_connection.aoai_api_base, aoai_deployment)
+     aoai_setting = AOAISetting(aoai_connection.api_key, aoai_connection.api_base, aoai_deployment)
      copilot_setting = CopilotSetting(True, aoai_setting, None, True, None)
      copilot_gpt_context = CopilotGPTContext(Template(copilot_instruction_template),
                                              Template(rewrite_user_input_template),
@@ -42,10 +42,11 @@ def copilot_flow(data: str,
      copilot_gpt_context.check_env()
      result = None
      json_body = json.loads(data)
-     loop = asyncio.get_event_loop()
+     loop = asyncio.new_event_loop()
+     asyncio.set_event_loop(loop)
 
      if reason == 'ask_openai_async':
-        result = loop.run_until_complete(copilot_gpt_context._ask_openai_async(json_body['messages'], json_body['functions'], json_body['function_call']))
+        result = loop.run_until_complete(copilot_gpt_context._ask_openai_async(json_body['messages'], json_body['functions'], json_body['function_call'], True))
      elif reason == 'get_understand_flow_system_message':
         result = copilot_gpt_context.understand_flow_template.render(flow_directory=json_body['flow_folder'], flow_yaml_path=os.path.join(json_body['flow_folder'], 'flow.dag.yaml'), flow_yaml=json_body['flow_yaml'], flow_description=json_body['flow_description'])
      elif reason == 'get_system_instruction':
