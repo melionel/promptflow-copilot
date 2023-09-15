@@ -3,12 +3,13 @@ import tkinter as tk
 from async_tkinter_loop import async_handler, async_mainloop
 import customtkinter
 from PIL import Image, ImageTk
-from CopilotContext import CopilotContext
 import traceback
 from constants import USER_TAG, COPILOT_TAG, IMAGE_TAG, USER_TEXT_COLOR, LABEL_COLOR, PILOT_TEXT_COLOR
 from constants import entry_default_message, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
 from logging_util import get_logger
 from tool_tip import ToolTip
+from copilot_management_context import CopilotManagementContext
+from copilotsetting_utils import get_copilotsetting
 import os
 
 current_tag = COPILOT_TAG
@@ -124,7 +125,8 @@ update_label = customtkinter.CTkLabel(app, text="Status: Waiting for user's inpu
 update_label.grid(row=0, sticky='nwse')
 
 # init CopilotContext
-copilot_context = CopilotContext()
+copilot_setting = get_copilotsetting()
+copilot_context = CopilotManagementContext(copilot_setting)
 
 # Create a text widget to display the chat conversation
 chat_box = tk.Text(app, font=CHAT_FONT)
