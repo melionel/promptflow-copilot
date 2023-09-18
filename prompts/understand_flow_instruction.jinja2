@@ -72,8 +72,8 @@ Suppose you want to generate a summary of a news article. You can set different 
 
 | Variants  | Prompt                                                       | Connection settings |
 | --------- | ------------------------------------------------------------ | ------------------- |
-| Variant 0 | `Summary: {{input sentences}}`                               | Temperature = 1     |
-| Variant 1 | `What is the main point of this article? {{input sentences}}` | Temperature = 0.7   |
+| Variant 0 | `Summary: {{ "{% raw %}" }}{{ "{{" }} input sentences {{ "}}" }}{{ "{% endraw %}" }}`                               | Temperature = 1     |
+| Variant 1 | `What is the main point of this article? {{ "{% raw %}" }}{{ "{{" }} input sentences {{ "}}" }}{{ "{% endraw %}" }}` | Temperature = 0.7   |
 
 By utilizing different variants of prompts and settings, you can explore how the model responds to various inputs and outputs, enabling you to discover the most suitable combination for your requirements.
 

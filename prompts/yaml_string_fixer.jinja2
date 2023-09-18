@@ -9,13 +9,13 @@ Pay attention:
 inputs:
   hobby: football
 outputs:
-  idle: {{inputs.hobby}}
+  idle: {{ "{% raw %}" }}{{ "{{" }} intputs.hobby {{ "}}" }}{{ "{% endraw %}" }}
 
 [error message]
 while constructing a mapping
   in "<unicode string>", line 4, column 9:
-      idle: {{inputs.hobby}}
-            ^
+      idle: {{ "{% raw %}" }}{{ "{{" }} intputs.hobby {{ "}}" }}{{ "{% endraw %}" }}
+                                  ^
 [fixed string]
 inputs:
   hobby: football

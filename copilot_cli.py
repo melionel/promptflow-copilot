@@ -3,7 +3,8 @@ import traceback
 from termcolor import colored
 from dotenv import load_dotenv
 from constants import USER_TAG, COPILOT_TAG, welcome_message, checking_environment_message, environment_ready_message, environment_not_ready_message
-from CopilotContext import CopilotContext
+from copilot_management_context import CopilotManagementContext
+from copilotsetting_utils import get_copilotsetting
 import asyncio
 colorama.init(autoreset=False)
 
@@ -17,7 +18,8 @@ def main():
     load_dotenv('pfcopilot.env')
     
     # init CopilotContext
-    copilot_context = CopilotContext()
+    copilot_setting = get_copilotsetting()
+    copilot_context = CopilotManagementContext(copilot_setting)
     
     # check environment
     print(checking_environment_message)
@@ -35,7 +37,7 @@ def main():
             break
         if goal.lower() == 'new chat':
             copilot_context.reset()
-            print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + "Okay, let's satrt over. What can I do for you?")
+            print('\n' + colored(f'[{COPILOT_TAG}]:', 'red') + "Okay, let's start over. What can I do for you?")
         else:
             print(colored(f'[{COPILOT_TAG}]:', 'red'))
             try:
