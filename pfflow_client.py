@@ -1,11 +1,16 @@
 import json
 import urllib.request
+import requests
+from event_stream import EventStream
+from logging_util import get_logger
+
+logger = get_logger()
 
 class PfFlowClient:
     def __init__(self, url, api_key, azureml_model_deployment) -> None:
         self.url = url
         self.api_key = api_key
-        self.azureml_model_deployment = azureml_model_deployment       
+        self.azureml_model_deployment = azureml_model_deployment
        
 
     def get_understand_flow_system_message(self, flow_folder, flow_yaml, flow_description):
@@ -110,34 +115,45 @@ class PfFlowClient:
         result = self.consume_endpoint(function_input, "smart_yaml_loads")
         return result
     
-    def ask_openai_async(self, messages, functions, function_call):
+    def ask_openai(self, messages, functions, function_call):
         function_input = {
             "messages": messages,
             "functions": functions,
             "function_call": function_call
             }
         
-        result = self.consume_endpoint(function_input, "ask_openai_async")
+        result = self.consume_endpoint(function_input, "ask_openai", True)  # stream=True
         return result
    
-    def consume_endpoint(self, function_input, reason):
+    def consume_endpoint(self, function_input, reason, stream=False):
+        if not self.api_key:
+            raise Exception("A key should be provided to invoke the endpoint")
+
         data = {
             "data": json.dumps(function_input),
             "reason": reason
         }
 
-        body = str.encode(json.dumps(data))
-        if not self.api_key:
-            raise Exception("A key should be provided to invoke the endpoint")
+        if stream:
+            # 'Accept':'text/event-stream' is for getting stream result from endpoint.
+            stream_headers = {'Accept':'text/event-stream', 'Content-Type':'application/json', 'Authorization':('Bearer '+ self.api_key), 'azureml-model-deployment': self.azureml_model_deployment }
+            response = requests.post(self.url, json=data, headers=stream_headers)
+            content_type = response.headers.get('Content-Type')
+            if "text/event-stream" in content_type:
+                event_stream = EventStream(response.iter_lines())
+                return event_stream
+            else:
+                logger.error("Endpoint return no stream result, there may have some errors.")
+        else:
+            no_stream_headers = {'Content-Type':'application/json', 'Authorization':('Bearer '+ self.api_key), 'azureml-model-deployment': self.azureml_model_deployment }
+            try:
+                response = requests.post(self.url, json=data, headers=no_stream_headers)
+                result = response.content
+                return json.loads(result)["answer"]
+            except urllib.error.HTTPError as error:
+                logger.error("The request failed with status code: " + str(error.code))
+                logger.error(error.info())
+                logger.error(error.read().decode("utf8", 'ignore'))
+
         
-        headers = {'Content-Type':'application/json', 'Authorization':('Bearer '+ self.api_key), 'azureml-model-deployment': self.azureml_model_deployment }
-        req = urllib.request.Request(self.url, body, headers)
         
-        try:
-            response = urllib.request.urlopen(req)
-            result = response.read().decode('utf-8')
-            return json.loads(result)["answer"]
-        except urllib.error.HTTPError as error:
-            print("The request failed with status code: " + str(error.code))
-            print(error.info())
-            print(error.read().decode("utf8", 'ignore'))

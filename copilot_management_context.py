@@ -136,7 +136,7 @@ class CopilotManagementContext:
         next_possible_function_calls = None
         function_call_choice = 'auto'
 
-        if not self.use_endpoint: # if call gpt from local, use stream output
+        if not self.use_endpoint:
             async for chunk in response:
                 if 'choices' in chunk and len(chunk['choices']) > 0:
                     delta = chunk.choices[0]['delta']
@@ -152,17 +152,28 @@ class CopilotManagementContext:
                     if 'role' in delta:
                         role = delta['role']
                     finish_reason = chunk.choices[0].finish_reason
-            completion_tokens = num_tokens_from_completions(message + function_call)
-            self.completion_tokens += completion_tokens
-            self.last_completion_tokens += completion_tokens
-        else: # if call gpt from endpoint, the result should be JSON serializable and may not be async_generator, so don't use stream output
-            response = response['choices'][0]
-            message = response['message']['content'] if 'content' in response['message'] else ""
-            finish_reason = response['finish_reason']
-            function_call = response['message']['function_call']['arguments'] if 'function_call' in response['message'] else ""
-            if function_call != "":
-                function_name = response['message']['function_call']['name'] if 'name' in response['message']['function_call'] else ""
+        else:
+            for event in response:
+                event_data = json.loads(event.data)
+                chunk = event_data['answer']
+                if 'choices' in chunk and len(chunk['choices']) > 0:
+                    delta = chunk['choices'][0]['delta']
+                    if 'content' in delta:
+                        cur_message = delta['content']
+                        message += cur_message
+                        print_info_func(cur_message)
+                    if 'function_call' in delta:
+                        if "name" in delta['function_call']:
+                            function_name = delta['function_call']["name"]
+                        if "arguments" in delta['function_call']:
+                            function_call+= delta['function_call']["arguments"]
+                    if 'role' in delta:
+                        role = delta['role']
+                    finish_reason = chunk['choices'][0]['finish_reason']
 
+        completion_tokens = num_tokens_from_completions(message + function_call)
+        self.completion_tokens += completion_tokens
+        self.last_completion_tokens += completion_tokens
         if message:
             self.messages.append({'role':role, 'content':message})
         
@@ -585,7 +596,7 @@ if __name__ == "__main__":
     # region functions
     async def _ask_openai_async(self, messages, functions, function_call, stream):
         if self.use_endpoint:
-            response = self.pfflow_client.ask_openai_async(messages, functions, function_call)
+            response = self.pfflow_client.ask_openai(messages, functions, function_call)
         else:
             response = await self.copilot_gpt_context._ask_openai_async(messages, functions, function_call, stream)
         

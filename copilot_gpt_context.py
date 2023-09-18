@@ -89,6 +89,29 @@ class CopilotGPTContext:
 
         return response
 
+    # this function is for calling gpt with stream output in the flow.
+    # since we use the python tool, the result of tool should be JSON serializable and may not be async_generator, so we cannot use async function.
+    def _ask_openai(self, messages=[], functions=None, function_call=None, stream=False):
+        request_args_dict = {
+            "messages": messages,
+            "stream": stream,
+            "temperature": 0
+        }
+
+        if functions:
+            request_args_dict['functions'] = functions
+
+        if functions and function_call:
+            request_args_dict['function_call'] = function_call
+
+        if self.copilot_setting.use_aoai:
+            request_args_dict['engine'] = self.copilot_setting.aoai_setting.aoai_deployment
+        else:
+            request_args_dict['model'] = self.copilot_setting.openai_setting.openai_model
+
+        response = openai.ChatCompletion.create(**request_args_dict)
+        return response
+
     async def _safe_load_flow_yaml(self, yaml_str):
         try:
             parsed_flow_yaml = await self._smart_yaml_loads(yaml_str)

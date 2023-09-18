@@ -45,8 +45,8 @@ def copilot_flow(data: str,
      loop = asyncio.new_event_loop()
      asyncio.set_event_loop(loop)
 
-     if reason == 'ask_openai_async':
-        result = loop.run_until_complete(copilot_gpt_context._ask_openai_async(json_body['messages'], json_body['functions'], json_body['function_call'], True))
+     if reason == 'ask_openai':
+        result = copilot_gpt_context._ask_openai(json_body['messages'], json_body['functions'], json_body['function_call'], True)
      elif reason == 'get_understand_flow_system_message':
         result = copilot_gpt_context.understand_flow_template.render(flow_directory=json_body['flow_folder'], flow_yaml_path=os.path.join(json_body['flow_folder'], 'flow.dag.yaml'), flow_yaml=json_body['flow_yaml'], flow_description=json_body['flow_description'])
      elif reason == 'get_system_instruction':
