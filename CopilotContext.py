@@ -47,6 +47,7 @@ class CopilotContext:
         self.json_string_fixer_template = jinja_env.get_template('prompts/json_string_fixer.jinja2')
         self.yaml_string_fixer_template = jinja_env.get_template('prompts/yaml_string_fixer.jinja2')
         self.function_call_instruction_template = jinja_env.get_template('prompts/function_call_instruction.jinja2')
+        self.gen_sample_inputs_template = jinja_env.get_template('prompts/gen_sample_data.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = []
@@ -584,7 +585,7 @@ class CopilotContext:
         self.flow_folder = os.path.dirname(path)
         return self.read_local_file(path=path, print_info_func=print_info_func)
 
-    async def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, reasoning=None, **kwargs):
+    async def dump_sample_inputs(self, file_name, total_count, extra_requirements, target_folder, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call dump_sample_inputs reasoning: {reasoning}')
 
@@ -592,7 +593,26 @@ class CopilotContext:
             print_info_func(f'\nBefore generate the sample inputs, please generate or provide the flow first')
             return
 
-        sample_inputs_file = f'{target_folder}\\flow.sample_inputs.jsonl'
+        sample_inputs_file = f'{target_folder}\\{file_name}'
+        if not total_count or total_count < 1 or total_count > 1000:
+            logger.info(f'invalid sample inputs count: {total_count}, Set to default 5')
+            total_count = 5
+
+        system_instruction = self.gen_sample_inputs_template.render(flow_yaml=self.flow_yaml)
+        user_input = f"Generate bulktest data with {total_count} items for the flow and then dump the data to my local disk for me."
+        if extra_requirements:
+            user_input += extra_requirements
+
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_input},
+            ]
+        
+        response = await self._ask_openai_async(messages=messages, functions=[function_calls.generate_sample_inputs], function_call={"name": "generate_sample_inputs"})
+        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        function_arguments = await self._smart_json_loads(function_call)
+        sample_inputs = function_arguments['sample_inputs']
+
         if sample_inputs is None:
             print_info_func('\nFailed to generate inputs for your flow, please try again')
         else:

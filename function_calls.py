@@ -155,7 +155,34 @@ read_flow_from_local_folder ={
 
 dump_sample_inputs = {
     'name': 'dump_sample_inputs',
-    'description': 'generate sample inputs for the flow and dump the generated sample inputs into local file for user and return the file path',
+    'description': 'generate sample inputs for the flow and dump the generated sample inputs into local file for user',
+    'parameters': {
+        'type': 'object',
+        'properties': {
+            'file_name': {
+                'type': 'string',
+                'description': 'file name to store the generated sample inputs',
+            },
+            'total_count': {
+                'type': 'number',
+                'description': 'sample inputs count to generate',
+            },
+            'extra_requirements': {
+                'type': 'string',
+                'description': 'extra requirements on the generated sample input data',
+            },
+            'reasoning': {
+                'type': 'string',
+                'description': 'reasoning about why this function is called',
+            },
+        },
+        'required': ['file_name', 'total_count', 'extra_requirements', 'reasoning']
+    }
+}
+
+generate_sample_inputs = {
+    'name': 'generate_sample_inputs',
+    'description': 'generate sample inputs for the flow',
     'parameters': {
         'type': 'object',
         'properties': {
@@ -165,13 +192,9 @@ dump_sample_inputs = {
                 'items': {
                     'type': 'string'
                 },
-            },
-            'reasoning': {
-                'type': 'string',
-                'description': 'reasoning about why this function is called'
-            },
+            }
         },
-        'required': ['sample_inputs', 'reasoning']
+        'required': ['sample_inputs']
     }
 }
 
