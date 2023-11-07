@@ -47,6 +47,9 @@ class CopilotContext:
         self.json_string_fixer_template = jinja_env.get_template('prompts/json_string_fixer.jinja2')
         self.yaml_string_fixer_template = jinja_env.get_template('prompts/yaml_string_fixer.jinja2')
         self.function_call_instruction_template = jinja_env.get_template('prompts/function_call_instruction.jinja2')
+        self.gen_sample_inputs_template = jinja_env.get_template('prompts/gen_sample_data.jinja2')
+        self.gen_eval_flow_inputs_template = jinja_env.get_template('prompts/gen_eval_flow_inputs.jinja2')
+        self.gen_eval_flow_functions = jinja_env.get_template('prompts/gen_eval_flow_functions.jinja2')
 
         self.system_instruction = self.copilot_instruction_template.render()
         self.messages = []
@@ -364,16 +367,8 @@ class CopilotContext:
                 early_stop = True
             elif function_name == 'dump_evaluation_flow':
                 function_arguments = await self._smart_json_loads(function_call)
-                evaluation_flow_folder = await self.dump_evaluation_flow(**function_arguments, flow_folder=self.flow_folder, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
+                evaluation_flow_folder = await self.dump_evaluation_flow(**function_arguments, print_info_func=print_info_func)
                 self.messages.append({"role": "function", "name": function_name, "content": f"{evaluation_flow_folder}"})
-                if evaluation_flow_folder:
-                    next_possible_function_calls = [function_calls.dump_evaluation_inputs]
-                    function_call_choice = {'name':'dump_evaluation_inputs'}
-            elif function_name == 'dump_evaluation_inputs':
-                function_arguments = await self._smart_json_loads(function_call)
-                evaluation_input_file = await self.dump_evaluation_inputs(**function_arguments, eval_flow_folder=self.flow_folder + '\\evaluation', print_info_func=print_info_func)
-                self.messages.append({"role": "function", "name": function_name, "content": f"{evaluation_input_file}"})
-                early_stop = True
             elif function_name == 'read_flow_from_local_file':
                 function_arguments = await self._smart_json_loads(function_call)
                 file_content = self.read_flow_from_local_file(**function_arguments, print_info_func=print_info_func)
@@ -584,7 +579,7 @@ class CopilotContext:
         self.flow_folder = os.path.dirname(path)
         return self.read_local_file(path=path, print_info_func=print_info_func)
 
-    async def dump_sample_inputs(self, sample_inputs, target_folder, print_info_func, reasoning=None, **kwargs):
+    async def dump_sample_inputs(self, file_name, total_count, extra_requirements, target_folder, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call dump_sample_inputs reasoning: {reasoning}')
 
@@ -592,7 +587,26 @@ class CopilotContext:
             print_info_func(f'\nBefore generate the sample inputs, please generate or provide the flow first')
             return
 
-        sample_inputs_file = f'{target_folder}\\flow.sample_inputs.jsonl'
+        sample_inputs_file = f'{target_folder}\\{file_name}'
+        if not total_count or total_count < 1 or total_count > 1000:
+            logger.info(f'invalid sample inputs count: {total_count}, Set to default 5')
+            total_count = 5
+
+        system_instruction = self.gen_sample_inputs_template.render(flow_yaml=self.flow_yaml)
+        user_input = f"Generate bulktest data with {total_count} items for the flow and then dump the data to my local disk for me."
+        if extra_requirements:
+            user_input += extra_requirements
+
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_input},
+            ]
+        
+        response = await self._ask_openai_async(messages=messages, functions=[function_calls.generate_sample_inputs], function_call={"name": "generate_sample_inputs"})
+        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        function_arguments = await self._smart_json_loads(function_call)
+        sample_inputs = function_arguments['sample_inputs']
+
         if sample_inputs is None:
             print_info_func('\nFailed to generate inputs for your flow, please try again')
         else:
@@ -608,59 +622,123 @@ class CopilotContext:
 
         return sample_inputs_file
 
-    async def dump_evaluation_inputs(self, evaluation_inputs, eval_flow_folder, flow_outputs_schema, print_info_func, reasoning=None, **kwargs):
-        if reasoning is not None:
-            logger.info(f'function call dump_evaluation_inputs reasoning: {reasoning}')
+    async def dump_evaluation_inputs(self, evaluation_inputs, eval_flow_folder, print_info_func, **kwargs):
+        evaluation_test_data_name = 'evaluation_test_data.jsonl'
 
-        with open(f'{eval_flow_folder}\\flow.sample_inputs.jsonl', 'w', encoding="utf-8") as f:
+        with open(f'{eval_flow_folder}\\{evaluation_test_data_name}', 'w', encoding="utf-8") as f:
             for sample_input in evaluation_inputs:
                 if sample_input is None:
                     continue
                 else:
                     sample_input = await self._smart_json_loads(sample_input) if type(sample_input) == str else sample_input
-                    for flow_output in flow_outputs_schema:
-                        output_name = flow_output['name']
-                        sample_input[output_name] = '<expected_output>'
-                f.write(json.dumps(sample_input) + '\n')
+                    sample_input = json.dumps(sample_input)
+                f.write(sample_input + '\n')
+
+        print_info_func(f'\nGenerated {len(evaluation_inputs)} sample evaluation inputs for your flow. And dump them into {eval_flow_folder}\\{evaluation_test_data_name}')
 
 
-    async def dump_evaluation_flow(self, flow_outputs_schema, flow_folder, eval_flow_folder, print_info_func, reasoning=None, **kwargs):
+    async def dump_evaluation_flow(self, evaluation_flow_folder, target_output, total_count, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
             logger.info(f'function call dump_evaluation_flow reasoning: {reasoning}')
 
-        if not flow_folder or not os.path.exists(flow_folder):
+        if not self.flow_folder or not os.path.exists(self.flow_folder):
             print_info_func(f'\nBefore generate the evaluation flow, please generate or provide the flow first')
             return
 
-        if not os.path.exists(eval_flow_folder):
-            os.mkdir(eval_flow_folder)
-            logger.info(f'Create flow folder:{eval_flow_folder}')
+        if not evaluation_flow_folder:
+            evaluation_flow_folder = self.flow_folder + '\\evaluation'
 
-        logger.info('Dumping evalutaion flow...')
+        if not total_count or total_count < 1 or total_count > 1000:
+            logger.info(f'invalid sample inputs count: {total_count}, Set to default 5')
+            total_count = 5
+
+        flow = await self._safe_load_flow_yaml(self.flow_yaml)
+        if 'outputs' not in flow:
+            raise Exception("Cannot generate evaluation flow for a flow without outputs")
+
+        if target_output:
+            if target_output not in flow['outputs']:
+                raise Exception(f"Cannot find the specified output to evaluate in the flow. Output name: {target_output}")
+
+        if not os.path.exists(evaluation_flow_folder):
+            os.mkdir(evaluation_flow_folder)
+            logger.info(f'Create evaluation flow folder:{evaluation_flow_folder}')
+
+        # generate evaluation inputs
+        system_instruction = self.gen_eval_flow_inputs_template.render(flow_yaml=self.flow_yaml)
+        evaluation_data_count = total_count
+        user_input = f"Generate evaluation evalution input for me with {evaluation_data_count} items"
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_input},
+            ]
+
+        response = await self._ask_openai_async(messages=messages, functions=[function_calls.dump_evaluation_input], function_call={"name": "dump_evaluation_input"})
+        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        function_arguments = await self._smart_json_loads(function_call)
+        evaluation_inputs = function_arguments['evaluation_inputs']
+        await self.dump_evaluation_inputs(evaluation_inputs, evaluation_flow_folder, print_info_func)
+
+        # generate line_process and aggreate functions
+        flow_output = f"flow output named {target_output}" if target_output else "flow outputs"
+        system_instruction = self.gen_eval_flow_functions.render(flow_yaml=self.flow_yaml, flow_output=flow_output)
+        messages = [{"role": "system", "content": system_instruction}]
+        response = await self._ask_openai_async(messages=messages, functions=[function_calls.dump_evaluation_functions], function_call={"name": "dump_evaluation_functions"})
+        function_call = getattr(response.choices[0].message.function_call, "arguments", "") if hasattr(response.choices[0].message, 'function_call') else ""
+        function_arguments = await self._smart_json_loads(function_call)
+
+        await self.dump_evaluation_functions(**function_arguments, target_folder=evaluation_flow_folder)
+
+        await self.dump_evaluation_flow_yaml_and_sdk_code(flow, evaluation_flow_folder, self.flow_folder, target_output)
+        print_info_func(f"Successfully generated evaluation flow to {evaluation_flow_folder}")
+
+        return evaluation_flow_folder
+
+    async def dump_evaluation_flow_yaml_and_sdk_code(self, original_flow, target_folder, flow_dir, specified_output, **kwargs):
         evaluation_flow_template_folder = os.path.join(self.script_directory, '.\evaluation_template')
-        file_list = os.listdir(evaluation_flow_template_folder)
-        import shutil
-        for file_name in file_list:
-            source_file_path = os.path.join(evaluation_flow_template_folder, file_name)
-            destination_file_path = os.path.join(eval_flow_folder, file_name)
-            shutil.copy(source_file_path, destination_file_path)
+        evaluation_flow_yaml = os.path.join(evaluation_flow_template_folder, "flow.dag.yaml")
+        with open(evaluation_flow_yaml, 'r') as f:
+            yaml_str = f.read()
+            evaluation_flow = await self._safe_load_flow_yaml(yaml_str)
 
-        # currently only support one output
-        first_output_column = 'flow_output'
-        if flow_outputs_schema and len(flow_outputs_schema) > 0:
-            first_output_column = flow_outputs_schema[0]['name']
+        evaluation_flow['inputs'] = {}
+        for k,v in original_flow['outputs'].items():
+            if not specified_output or k == specified_output:
+                evaluation_flow['inputs'][k] = {'type': v['type']}
+                evaluation_flow['inputs'][f"expected_{k}"] = {'type': v['type']}
 
-        goundtruth_name = f'data.{first_output_column}'
-        prediction_name = f'run.outputs.{first_output_column}'
+        for node in evaluation_flow['nodes']:
+            if node['name'] == 'line_process':
+                node['inputs'] = {}
+                for k in evaluation_flow['inputs'].keys():
+                    node['inputs'][k] = f"${{inputs.{k}}}"
 
+        # dump modified yaml to local file
+        modified_yaml_path = os.path.join(target_folder, "flow.dag.yaml")
+        with open(modified_yaml_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(evaluation_flow, f)
+
+        # dump sample sdk code
+        # generate column mapping string
+        column_mappings = []
+        for k in original_flow['outputs'].keys():
+            if not specified_output or k == specified_output:
+                column_mappings.append(f'"{k}": "${{run.outputs.{k}}}"')
+                column_mappings.append(f'"expected_{k}": "${{data.expected_{k}}}"')
+
+        column_mapping_string = ",".join(column_mappings)
+
+        evaluation_flow_folder_string = target_folder.replace("\\", "\\\\")
+        flow_dir_string = flow_dir.replace("\\", "\\\\")
+        target_folder_string = target_folder.replace("\\", "\\\\")
         sdk_eval_sample_code = f"""
 from promptflow import PFClient
 import json
 
 def main():
     # Set flow path and run input data
-    flow = "{flow_folder}" # set the flow directory
-    data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl" # set the data file
+    flow = "{flow_dir_string}" # set the flow directory
+    data= "{target_folder_string}\\\\evaluation_test_data.jsonl" # set the data file
 
     pf = PFClient()
 
@@ -672,15 +750,15 @@ def main():
     )
 
     # set eval flow path
-    eval_flow = "{eval_flow_folder}"
-    data= "{eval_flow_folder}\\\\flow.sample_inputs.jsonl"
+    eval_flow = "{evaluation_flow_folder_string}"
+    data= "{evaluation_flow_folder_string}\\\\evaluation_test_data.jsonl"
 
     # run the flow with exisiting run
     eval_run = pf.run(
         flow=eval_flow,
         data=data,
         run=base_run,
-        column_mapping={{"groundtruth": "${{{goundtruth_name}}}","prediction": "${{{prediction_name}}}"}},  # map the url field from the data to the url input of the flow
+        column_mapping={{{column_mapping_string}}},  # map the url field from the data to the url input of the flow
     )
 
     # stream the run until it's finished
@@ -701,12 +779,8 @@ if __name__ == "__main__":
     main()
 
     """
-        with open(f'{eval_flow_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f:
+        with open(f'{target_folder}\\promptflow_sdk_sample_code.py', 'w', encoding="utf-8") as f:
             f.write(sdk_eval_sample_code)
-
-        print_info_func(f'\nDumped evalutaion flow to {eval_flow_folder}. You can refer to the sample code in {eval_flow_folder}\\promptflow_sdk_sample_code.py to run the eval flow.')
-
-        return eval_flow_folder
 
     def dump_flow_definition_and_description(self, flow_yaml, description, print_info_func, reasoning=None, **kwargs):
         if reasoning is not None:
@@ -743,5 +817,23 @@ if __name__ == "__main__":
             if file_name.endswith('dag.yaml'):
                 logger.info('update flow yaml')
                 await self._safe_load_flow_yaml(file_content)
+
+    async def dump_evaluation_functions(self, line_process, aggregate, target_folder):
+        requirement_python_packages = set()
+        with open(f'{target_folder}\\line_process.py', 'w', encoding="utf-8") as f:
+            refined_codes = await self._refine_python_code(line_process)
+            f.write(refined_codes)
+            packages = await self._find_dependent_python_packages(refined_codes)
+            requirement_python_packages.update(packages)
+        with open(f'{target_folder}\\aggregate.py', 'w', encoding="utf-8") as f:
+            refined_codes = await self._refine_python_code(aggregate)
+            f.write(refined_codes)
+            packages = await self._find_dependent_python_packages(refined_codes)
+            requirement_python_packages.update(packages)
+
+        # dump requirements.txt
+        if requirement_python_packages and len(requirement_python_packages) > 0:
+            with open(f'{target_folder}\\requirements.txt', 'w', encoding="utf-8") as f:
+                f.write('\n'.join(requirement_python_packages))
 
     # endregion

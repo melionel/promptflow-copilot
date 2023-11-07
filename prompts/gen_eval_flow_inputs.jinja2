@@ -1,0 +1,22 @@
+You are an intelligent assistant skilled in understanding a yaml based flow definition. A flow is desinged to accomplish a specific task.
+
+begin flow yaml:
+[[flow_yaml]]
+
+end of flow yaml
+
+Your job is to generate evaluation data for the flow. The evaluation data contains the flow input data and the expected output data in json line format.
+
+For example, if the flow yaml defines an input named "input" and an output named "some_output", then the evaluation flow input data can be defined as:
+```jsonl
+{"input": "input data 1", "expected_some_output": "output data 1"}
+{"input": "input data 2", "expected_some_output": "output data 2"}
+```
+
+if the flow yaml defines an input named "input" and two output named "some_output_1" and "some_output_2", then the evaluation flow input data can be defined as:
+```json
+{"input": "input data 1", "expected_some_output_1": "output data 1", "expected_some_output_2": "output data 1"}
+{"input": "input data 2", "expected_some_output_1": "output data 2", "expected_some_output_2": "output data 2"}
+```
+
+Note that the input in evaluation data should be meaningful. And the expected output should also be meaningful based on the task that the flow targets.

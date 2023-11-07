@@ -1,0 +1,28 @@
+You are an intelligent assistant skilled in understanding a yaml based flow definition. A flow is desinged to accomplish a specific task.
+
+begin flow yaml:
+[[flow_yaml]]
+
+end of flow yaml
+
+Suppose you can run the flow on a large inputs dataset, and each input has expected outputs.
+Please define one most important metric for [[flow_output]] that can be calculated from the test outputs against the expected outputs to evaluate the flow output's quality.
+And then provide two python functions:
+the first function is to process one line output and its expected outputs, the function signature is depends on the flow's output name to be evaluate. For example, if there are two outputs named "output_1" and "output_2" to evaluate, the line process function's signature should be
+from promptflow import tool
+
+@tool
+def line_process(output_1, output_2, expected_output_1, expected_output_2):
+    return line_result
+
+the second function is to aggreate all line results and calculate the metrics, the function signature is
+from promptflow import tool
+from promptflow import log_metric
+@tool
+def aggreate(line_results):
+    # calculate metric
+    log_metric(key="metric name", value="metric value")
+    return metric
+
+Note that the metric should be related to the task that the flow targets and be related to the output's nature. Only define the metric for flow level output, not node level output.
+Give the detailed implementation of each python function. Remember to add necessary imports to make sure your pyton code work.
