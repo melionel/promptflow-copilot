@@ -204,91 +204,62 @@ dump_evaluation_flow ={
     'parameters': {
         'type': 'object',
         'properties': {
-            'flow_inputs_schema': {
-                'type': 'array',
-                'description': 'flow inputs schemas',
-                'items': {
-                    'name': {
-                        'type': 'string',
-                        'description': 'input name'
-                    },
-                    'schema': {
-                        'type': 'string',
-                        'description': 'input schema'
-                    }
-                }
+            'evaluation_flow_folder': {
+                'type': 'string',
+                'description': 'target folder to dump the evaluation flow, could be empty',
             },
-            'flow_outputs_schema': {
-                'type': 'array',
-                'description': 'flow outputs schemas',
-                'items': {
-                    'name': {
-                        'type': 'string',
-                        'description': 'output name'
-                    },
-                    'schema': {
-                        'type': 'string',
-                        'description': 'output schema'
-                    }
-                }
+            'target_output': {
+                'type': 'string',
+                'description': 'specify which flow output you want to evaluate. If not set, evaluate all flow outputs',
+            },
+            'total_count': {
+                'type': 'number',
+                'description': 'total count of the generated evaluation data',
             },
             'reasoning': {
                 'type': 'string',
                 'description': 'reasoning about why this function is called'
             }
         },
-        'required': ['evaluation_inputs', 'flow_inputs_schema', 'flow_outputs_schema', 'reasoning']
+        'required': ['evaluation_flow_folder', 'target_output', 'total_count', 'reasoning']
     }
 }
 
-dump_evaluation_inputs = {
-    'name': 'dump_evaluation_inputs',
-    'description': 'generate evaluation inputs for the flow and dump the generated inputs into local file for user and return the file path',
+dump_evaluation_input = {
+    'name': 'dump_evaluation_input',
+    'description': 'generate evaluation input flow for the flow and dump the generated evaluation input into local file for user',
     'parameters': {
         'type': 'object',
         'properties': {
-            'flow_inputs_schema': {
-                'type': 'array',
-                'description': 'flow inputs schemas',
-                'items': {
-                    'name': {
-                        'type': 'string',
-                        'description': 'input name'
-                    },
-                    'schema': {
-                        'type': 'string',
-                        'description': 'input schema'
-                    }
-                }
-            },
-            'flow_outputs_schema': {
-                'type': 'array',
-                'description': 'flow outputs schemas',
-                'items': {
-                    'name': {
-                        'type': 'string',
-                        'description': 'output name'
-                    },
-                    'schema': {
-                        'type': 'string',
-                        'description': 'output schema'
-                    }
-                }
-            },
             'evaluation_inputs': {
                 'type': 'array',
-                'description': 'generated evaluation flow input data in json string format',
+                'description': 'generated evaluation inputs in json string format',
                 'items': {
                     'type': 'string'
                 },
-            },
-            'reasoning': {
-                'type': 'string',
-                'description': 'reasoning about why this function is called'
-            },
+            }
         },
-        'required': ['flow_inputs_schema', 'flow_outputs_schema', 'evaluation_inputs', 'reasoning']
+        'required': ['evaluation_inputs']
     }
+}
+
+dump_evaluation_functions = {
+    'name': 'dump_evaluation_functions',
+    'description': 'generate line_process function and aggregate function python code and dump it to local file',
+    'parameters': {
+        'type': 'object',
+        'properties': {
+            'line_process': {
+                'type': 'string',
+                'description': 'line_process function python code'
+            },
+            'aggregate': {
+                'type': 'string',
+                'description': 'aggregate function python code'
+            }
+        },
+        'required': ['line_process', 'aggregate']
+    }  
 }
 
 dump_flow_definition_and_description = {

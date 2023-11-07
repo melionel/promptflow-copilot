@@ -1,10 +1,6 @@
 id: template_eval_flow
 name: Template Evaluation Flow
 inputs:
-  groundtruth:
-    type: string
-  prediction:
-    type: string
 outputs:
   results:
     type: string
