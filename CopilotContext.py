@@ -1,6 +1,5 @@
 import os
 import json
-import openai
 import re
 import yaml
 import asyncio
@@ -8,6 +7,8 @@ from pathlib import Path
 from json import JSONDecodeError
 from datetime import datetime
 from dotenv import load_dotenv
+from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai.types import CompletionUsage
 
 from jinja2 import Environment, FileSystemLoader
 from logging_util import get_logger
@@ -74,16 +75,16 @@ class CopilotContext:
             if not self.aoai_key or not self.aoai_deployment or not self.aoai_api_base:
                 return False, "You configured to use AOAI, but one or more of the following environment variables were not set: AOAI_API_KEY, AOAI_DEPLOYMENT, AOAI_API_BASE"
             else:
-                openai.api_key = self.aoai_key
-                openai.api_type = "azure"
-                openai.api_base = self.aoai_api_base
-                openai.api_version = "2023-07-01-preview"
+                self.llm_client = AsyncAzureOpenAI(
+                    azure_endpoint=self.aoai_api_base,
+                    api_version="2023-07-01-preview",
+                    api_key=self.aoai_key)
                 return True, ""
         else:
             if not self.openai_key or not self.openai_model:
                 return False, "You configured to use OPENAI, but one or more of the following environment variables were not set: OPENAI_API_KEY, OPENAI_API_KEY"
             else:
-                openai.api_key = self.openai_key
+                self.llm_client = AsyncOpenAI(api_key=self.openai_key)
                 return True, ""
 
     def reset(self):
@@ -97,27 +98,26 @@ class CopilotContext:
         self.last_prompt_tokens = 0
 
     async def _ask_openai_async(self, messages=[], functions=None, function_call=None, stream=False):
-        request_args_dict = {
-            "messages": messages,
-            "stream": stream,
-            "temperature": 0
-        }
-
+        function_calls = {}
         if functions:
-            request_args_dict['functions'] = functions
+            function_calls['functions'] = functions
 
         if functions and function_call:
-            request_args_dict['function_call'] = function_call
+            function_calls['function_call'] = function_call
 
         if self.use_aoai:
-            request_args_dict['engine'] = self.aoai_deployment
+            deployment = self.aoai_deployment
         else:
-            request_args_dict['model'] = self.openai_model
+            deployment = self.openai_model
 
-        response = await openai.ChatCompletion.acreate(**request_args_dict)
+        response = await self.llm_client.chat.completions.create(
+            messages=messages,
+            model=deployment,
+            stream=stream,
+            **function_calls
+        )
 
         if not stream:
-            response_ms = response.response_ms
             prompt_tokens = response.usage.prompt_tokens
             completion_tokens = response.usage.completion_tokens
             total_tokens = response.usage.total_tokens
@@ -127,7 +127,6 @@ class CopilotContext:
             self.last_completion_tokens += completion_tokens
             self.last_prompt_tokens += prompt_tokens
 
-            logger.info(f'Get response from ChatGPT in {response_ms} ms!')
             logger.info(f'total tokens:{total_tokens}\tprompt tokens:{prompt_tokens}\tcompletion tokens:{completion_tokens}')
 
         return response
@@ -312,19 +311,19 @@ class CopilotContext:
         function_call_choice = 'auto'
 
         async for chunk in response:
-            if 'choices' in chunk and len(chunk['choices']) > 0:
-                delta = chunk.choices[0]['delta']
-                if 'content' in delta:
-                    cur_message = delta['content']
+            if len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    cur_message = delta.content
                     message += cur_message
                     print_info_func(cur_message)
-                if 'function_call' in delta:
-                    if "name" in delta.function_call:
-                        function_name = delta.function_call["name"]
-                    if "arguments" in delta.function_call:
-                        function_call+= delta.function_call["arguments"]
-                if 'role' in delta:
-                    role = delta['role']
+                if delta.function_call:
+                    if delta.function_call.name:
+                        function_name = delta.function_call.name
+                    if delta.function_call.arguments:
+                        function_call+= delta.function_call.arguments
+                if delta.role:
+                    role = delta.role
                 finish_reason = chunk.choices[0].finish_reason
 
         if message:
