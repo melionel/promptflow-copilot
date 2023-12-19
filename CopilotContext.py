@@ -31,6 +31,7 @@ class CopilotContext:
 
         self.openai_key = os.environ.get("OPENAI_API_KEY")
         self.openai_model = os.environ.get("OPENAI_MODEL")
+        self.persist_index_path = (os.path.join(self.script_directory, 'pfdocIndex'))
 
         self.completion_tokens = 0
         self.prompt_tokens = 0
@@ -113,9 +114,16 @@ class CopilotContext:
                 return False, "You configured to use OPENAI, but one or more of the following environment variables were not set: OPENAI_API_KEY, OPENAI_API_KEY"
             else:
                 self.llm_client = AsyncOpenAI(api_key=self.openai_key)
-            
-        documents = SimpleDirectoryReader("docs", recursive=True).load_data()
-        index = VectorStoreIndex.from_documents(documents, show_progress=False)
+
+
+        if os.path.exists(self.persist_index_path):
+            from llama_index import StorageContext, load_index_from_storage
+            storage_context = StorageContext.from_defaults(persist_dir=self.persist_index_path)
+            index = load_index_from_storage(storage_context)
+        else:
+            documents = SimpleDirectoryReader("docs", recursive=True).load_data()
+            index = VectorStoreIndex.from_documents(documents, show_progress=False)
+            index.storage_context.persist(self.persist_index_path)
         self.llama_query_engine = index.as_query_engine()
 
         return True, ""
