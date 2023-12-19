@@ -8,7 +8,7 @@ from json import JSONDecodeError
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI, AsyncOpenAI
-from openai.types import CompletionUsage
+from llama_index import ServiceContext, VectorStoreIndex, SimpleDirectoryReader
 
 from jinja2 import Environment, FileSystemLoader
 from logging_util import get_logger
@@ -23,8 +23,11 @@ class CopilotContext:
         load_dotenv(os.path.join(self.script_directory, 'pfcopilot.env'))
         self.use_aoai = os.environ.get("AOAI_BY_DEFAULT", "true").lower() == "true"
         self.aoai_key = os.environ.get("AOAI_API_KEY")
+        self.aoai_model = os.environ.get("AOAI_MODEL")
         self.aoai_deployment = os.environ.get("AOAI_DEPLOYMENT")
         self.aoai_api_base = os.environ.get("AOAI_API_BASE")
+        self.aoai_embedding_model = os.environ.get("AOAI_EMBEDDING_MODEL")
+        self.aoai_embedding_deployment = os.environ.get("AOAI_EMBEDDING_DEPLOYMENT")
 
         self.openai_key = os.environ.get("OPENAI_API_KEY")
         self.openai_model = os.environ.get("OPENAI_MODEL")
@@ -70,22 +73,53 @@ class CopilotContext:
     def total_money_cost(self):
         return self.prompt_tokens * 0.000003 + self.completion_tokens * 0.00000004
 
-    def check_env(self):
+    def check_and_init_env(self):
         if self.use_aoai:
             if not self.aoai_key or not self.aoai_deployment or not self.aoai_api_base:
                 return False, "You configured to use AOAI, but one or more of the following environment variables were not set: AOAI_API_KEY, AOAI_DEPLOYMENT, AOAI_API_BASE"
             else:
+                from llama_index import set_global_service_context
+                from llama_index.llms import AzureOpenAI
+                from llama_index.embeddings import AzureOpenAIEmbedding
+                llm = AzureOpenAI(
+                    model=self.aoai_model,
+                    deployment_name=self.aoai_deployment,
+                    api_key=self.aoai_key,
+                    azure_endpoint=self.aoai_api_base,
+                    api_version="2023-07-01-preview",
+                )
+
+                embed_model = AzureOpenAIEmbedding(
+                    model=self.aoai_embedding_model,
+                    deployment_name=self.aoai_embedding_deployment,
+                    api_key=self.aoai_key,
+                    azure_endpoint=self.aoai_api_base,
+                    api_version="2023-07-01-preview",
+                )
+
+                service_context = ServiceContext.from_defaults(
+                    llm=llm,
+                    embed_model=embed_model,
+                )
+
+                set_global_service_context(service_context)
+
                 self.llm_client = AsyncAzureOpenAI(
                     azure_endpoint=self.aoai_api_base,
                     api_version="2023-07-01-preview",
                     api_key=self.aoai_key)
-                return True, ""
         else:
             if not self.openai_key or not self.openai_model:
                 return False, "You configured to use OPENAI, but one or more of the following environment variables were not set: OPENAI_API_KEY, OPENAI_API_KEY"
             else:
                 self.llm_client = AsyncOpenAI(api_key=self.openai_key)
-                return True, ""
+            
+        documents = SimpleDirectoryReader("docs", recursive=True).load_data()
+        index = VectorStoreIndex.from_documents(documents, show_progress=False)
+        self.llama_query_engine = index.as_query_engine()
+
+        return True, ""
+
 
     def reset(self):
         self.messages = []
@@ -259,6 +293,12 @@ class CopilotContext:
                 return await self._fix_json_string_and_loads(json_string, str(ex))
             else:
                 return await self._smart_json_loads(updated_function_call)
+
+    def ask_gpt(self, content):
+        response = self.llama_query_engine.query(content)
+        context = [c.node.get_content() for c in response.source_nodes]
+        return response.response, context
+
 
     async def ask_gpt_async(self, content, print_info_func):
         self.last_prompt_tokens = 0

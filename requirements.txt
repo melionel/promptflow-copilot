@@ -7,3 +7,4 @@ pyyaml
 async-tkinter-loop
 tiktoken
 Jinja2
+llama-index

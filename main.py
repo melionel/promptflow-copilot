@@ -151,7 +151,7 @@ send_button.grid(row=2, column=9, columnspan=1, sticky='nsew', padx=(0, 10), pad
 send_button_tooltip = ToolTip(send_button, normal_text="send user input", disabled_text="please wait until the current request is completed")
 
 # check environment
-env_ready, msg = copilot_context.check_env()
+env_ready, msg = copilot_context.check_and_init_env()
 add_image_to_chat()
 add_to_chat(welcome_message, COPILOT_TAG)
 add_to_chat(checking_environment_message, COPILOT_TAG)

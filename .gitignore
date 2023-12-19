@@ -5,3 +5,5 @@ __pycache__
 .promptflow
 .vscode
 flow_*/
+docs/**/*.png
+docs/**/*.gif

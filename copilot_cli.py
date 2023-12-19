@@ -14,14 +14,12 @@ def main():
     print(colored(f'[{COPILOT_TAG}]:', 'red'))
     print(welcome_message + 'You can end the chat by type `exit` in the command line, or start a new chat by type `new chat` in the command line')
 
-    load_dotenv('pfcopilot.env')
-    
     # init CopilotContext
     copilot_context = CopilotContext()
     
     # check environment
     print(checking_environment_message)
-    env_ready, msg = copilot_context.check_env()
+    env_ready, msg = copilot_context.check_and_init_env()
     if env_ready:
         print(environment_ready_message)
     else:
